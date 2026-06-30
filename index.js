@@ -628,6 +628,11 @@ paper.view.autoUpdate = false;
 
 //---- Draw the Layers
 
+// Clipper cold-start guard: the very first boolean op silently returns empty
+// if it runs before paper.js has yielded once. Force one update + a macrotask
+// so the first real op below isn't the cold one (would drop the bottom layer).
+paper.view.update();
+await new Promise(resolve => setTimeout(resolve, 0));
 
 for (z = 0; z < stacks; z++) {
     pz=z*prange;
