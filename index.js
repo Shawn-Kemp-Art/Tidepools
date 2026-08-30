@@ -104,6 +104,11 @@ if(new URLSearchParams(window.location.search).get('s')){qsize = new URLSearchPa
 var qcomplexity = R.random_int(1,10);
 if(new URLSearchParams(window.location.search).get('d')){qcomplexity = parseInt(new URLSearchParams(window.location.search).get('d'))}; //size
 qcomplexity = qcomplexity+3;
+
+var qaspect = "4:5";
+if(new URLSearchParams(window.location.search).get('aspect')){qaspect = new URLSearchParams(window.location.search).get('aspect')}; //aspect ratio
+
+
 var qvariation = R.random_int(0,10);
 if(new URLSearchParams(window.location.search).get('v')){qvariation = parseInt(new URLSearchParams(window.location.search).get('v'))}; //cell size variation
 var qweighting = R.random_int(0,10);
@@ -112,6 +117,8 @@ var qdepthvar = R.random_int(0,10);
 if(new URLSearchParams(window.location.search).get('dv')){qdepthvar = parseInt(new URLSearchParams(window.location.search).get('dv'))}; //depth variance: 0 = all cells cut full depth, 10 = some cells only cut ~3 layers
 var qtermstyle = R.random_int(1,10);
 if(new URLSearchParams(window.location.search).get('ts')){qtermstyle = parseInt(new URLSearchParams(window.location.search).get('ts'))}; //termination style: 1 = cells stop with large polygons, 10 = cells shrink to tiny points
+
+
 
 var qorientation =R.random_int(1,2) < 2 ? "portrait" : "landscape";
 var qframecolor = R.random_int(0,3) < 1 ? "White" : R.random_int(1,3) < 2 ? "Mocha" : "Random";     
@@ -142,7 +149,7 @@ definitions = [
         id: "aspectratio",
         name: "Aspect ratio",
         type: "select",
-        default: "4:5",
+        default: qaspect,
         options: {options: ["1:1", "2:5","3:5","4:5","54:86","296:420"]},
     },
     {
