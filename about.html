@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Voronoi · Shawn Kemp Art</title>
+<meta name="description" content="A series of dimensional wall sculptures grown from a cellular pattern generated in code and cut by hand into twelve layers of archival mat-board." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,560;0,9..144,650;1,9..144,500&family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper: #EDEAE1;
+    --paper-raised: #E2DFD4;
+    --ink: #262320;
+    --ink-soft: #55503f;
+    --rule: #c9c3b2;
+    --blueprint: #16233A;
+    --blueprint-raised: #1D3050;
+    --blueprint-line: #D7E9FB;
+    --blueprint-line-soft: #93AAC8;
+    --ember: #A94E22;
+    --ember-soft: #C4622B;
+    --plotter: #3E6B52;
+    --shadow: rgba(20, 18, 12, 0.16);
+  }
+
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper: #201D18;
+      --paper-raised: #2A2620;
+      --ink: #EDE8DC;
+      --ink-soft: #B7AF9C;
+      --rule: #423C31;
+      --blueprint: #0B1526;
+      --blueprint-raised: #12213B;
+      --blueprint-line: #DCEBFB;
+      --blueprint-line-soft: #7C93B4;
+      --ember: #E17C48;
+      --ember-soft: #E17C48;
+      --plotter: #78B79A;
+      --shadow: rgba(0, 0, 0, 0.5);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper: #201D18;
+    --paper-raised: #2A2620;
+    --ink: #EDE8DC;
+    --ink-soft: #B7AF9C;
+    --rule: #423C31;
+    --blueprint: #0B1526;
+    --blueprint-raised: #12213B;
+    --blueprint-line: #DCEBFB;
+    --blueprint-line-soft: #7C93B4;
+    --ember: #E17C48;
+    --ember-soft: #E17C48;
+    --plotter: #78B79A;
+    --shadow: rgba(0, 0, 0, 0.5);
+  }
+
+  *{ box-sizing: border-box; }
+  body{
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: "Spectral", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.6;
+  }
+  ::selection{ background: var(--ember-soft); color: #fff; }
+
+  h1, h2, h3{
+    font-family: "Fraunces", Georgia, serif;
+    font-weight: 650;
+    text-wrap: balance;
+    line-height: 1.08;
+    margin: 0;
+  }
+
+  .mono{
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  a{ color: inherit; }
+  a.link{
+    color: var(--ember);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  .wrap{
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 0 clamp(20px, 4vw, 56px);
+  }
+
+  /* ---------- Header ---------- */
+  header.hero{
+    padding: clamp(48px, 8vw, 88px) 0 clamp(28px, 5vw, 44px);
+    border-bottom: 1px solid var(--rule);
+  }
+  .eyebrow{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin: 0 0 18px;
+  }
+  .eyebrow .dot{ color: var(--plotter); }
+  h1.title{
+    font-size: clamp(48px, 9vw, 104px);
+    letter-spacing: -0.01em;
+  }
+  h1.title em{
+    font-style: italic;
+    font-weight: 500;
+    color: var(--ember);
+  }
+  .dek{
+    max-width: 62ch;
+    font-size: clamp(17px, 2vw, 20px);
+    color: var(--ink-soft);
+    margin-top: 18px;
+  }
+
+  /* ---------- Layout: rail + content ---------- */
+  .layout{
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: clamp(28px, 5vw, 64px);
+    padding-top: clamp(28px, 5vw, 48px);
+  }
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  .rail{
+    position: sticky;
+    top: 24px;
+    align-self: start;
+    border: 1px solid var(--rule);
+    background: var(--paper-raised);
+    padding: 20px;
+  }
+  @media (max-width: 860px){
+    .rail{ position: static; }
+  }
+  .rail h2{
+    font-size: 13px;
+    font-family: "IBM Plex Mono", monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  dl.specs{
+    margin: 0;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    row-gap: 12px;
+    column-gap: 14px;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+  }
+  dl.specs dt{
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+  dl.specs dd{
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+  .swatches{
+    display: flex;
+    gap: 6px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+  }
+  .swatch{
+    width: 20px; height: 20px;
+    border: 1px solid var(--shadow);
+  }
+
+  .content{ min-width: 0; }
+
+  section.block{
+    padding: clamp(40px, 6vw, 72px) 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  section.block:last-of-type{ border-bottom: none; }
+
+  .block-label{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--plotter);
+    margin-bottom: 14px;
+  }
+
+  h2.block-title{
+    font-size: clamp(28px, 4vw, 40px);
+    max-width: 20ch;
+    margin-bottom: 20px;
+  }
+
+  .prose{
+    max-width: 66ch;
+  }
+  .prose p{ margin: 0 0 1.1em; }
+  .prose p:last-child{ margin-bottom: 0; }
+  .prose h3{
+    font-size: 22px;
+    font-weight: 650;
+    margin: 1.6em 0 0.55em;
+  }
+  .prose h3:first-child{ margin-top: 0; }
+
+  .lede{
+    font-size: clamp(19px, 2.4vw, 23px);
+    line-height: 1.5;
+    max-width: 34ch;
+  }
+
+  .gallery-card{
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    padding: clamp(24px, 4vw, 40px);
+    display: grid;
+    gap: 22px;
+  }
+  @media (min-width: 640px){
+    .gallery-card{ grid-template-columns: 1fr auto; align-items: start; }
+  }
+  .gallery-card .prose{ font-size: 18px; }
+  .copy-btn{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    border: 1px solid var(--ink-soft);
+    color: var(--ink);
+    padding: 9px 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .copy-btn:hover{ border-color: var(--ember); color: var(--ember); }
+  .copy-btn:focus-visible{ outline: 2px solid var(--ember); outline-offset: 2px; }
+  .copy-btn[data-copied="true"]{ border-color: var(--plotter); color: var(--plotter); }
+
+  /* ---------- Blueprint-zone sections ---------- */
+  .blueprint-zone{
+    background: var(--blueprint);
+    color: var(--blueprint-line);
+    margin: 0 calc(-1 * clamp(20px, 4vw, 56px));
+    padding: clamp(40px, 6vw, 72px) clamp(20px, 4vw, 56px);
+  }
+  .blueprint-zone .block-label{ color: var(--plotter); }
+  .blueprint-zone h2.block-title{ color: var(--blueprint-line); }
+  .blueprint-zone h3{ color: var(--blueprint-line); }
+  .blueprint-zone .prose{ color: var(--blueprint-line-soft); }
+  .blueprint-zone .lede{ color: var(--blueprint-line); }
+  .blueprint-zone a.link{ color: var(--ember-soft); }
+
+  figure.diagram{
+    margin: 8px 0 34px;
+    border: 1px solid var(--blueprint-line-soft);
+    background: var(--blueprint-raised);
+    padding: 18px 18px 14px;
+  }
+  figure.diagram svg{ display: block; width: 100%; height: auto; }
+  figure.diagram figcaption{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    color: var(--blueprint-line-soft);
+    margin-top: 10px;
+  }
+
+  .plate{
+    background: var(--blueprint-raised);
+    border: 1px solid var(--blueprint-line-soft);
+    padding: 22px 24px;
+    overflow-x: auto;
+  }
+  .plate .head{
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed var(--blueprint-line-soft);
+  }
+  .plate .head .name{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--blueprint-line);
+  }
+  .plate .head .tag{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11px;
+    color: var(--blueprint-line-soft);
+  }
+  pre.code{
+    margin: 0;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    line-height: 1.65;
+    white-space: pre;
+    color: var(--blueprint-line);
+  }
+  pre.code .kw{ color: var(--ember-soft); }
+  pre.code .fn{ color: #9FD6C4; }
+  pre.code .cm{ color: var(--blueprint-line-soft); font-style: italic; }
+  .plate-caption{
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    color: var(--blueprint-line-soft);
+    margin-top: 16px;
+    max-width: 58ch;
+  }
+
+  /* ---------- Footer ---------- */
+  footer{
+    padding: clamp(32px, 5vw, 48px) 0 clamp(56px, 8vw, 88px);
+  }
+  footer .prose{ font-style: italic; color: var(--ink-soft); }
+  footer .practice-link{ margin-top: 10px; }
+
+  @media (prefers-reduced-motion: no-preference){
+    .copy-btn{ transition: color 120ms ease, border-color 120ms ease; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <p class="eyebrow">Shawn Kemp Art <span class="dot">·</span> Series notes</p>
+    <h1 class="title">Voronoi<span aria-hidden="true">.</span></h1>
+    <p class="dek">Dimensional wall sculptures cut from twelve layers of archival mat-board, each one grown from a cellular pattern that drills down through the stack, unevenly, on its own terms.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="rail">
+      <h2>Spec sheet</h2>
+      <dl class="specs">
+        <dt>Series</dt><dd>Voronoi</dd>
+        <dt>Medium</dt><dd>Laser-cut mat-board, PVA</dd>
+        <dt>Layers</dt><dd>12, standard</dd>
+        <dt>Depth</dt><dd>≈ 0.75 in stacked</dd>
+        <dt>Size range</dt><dd>16×20 – 24×30 in</dd>
+        <dt>Cutter</dt><dd>100W CO₂ laser</dd>
+        <dt>Assembly</dt><dd>By hand, Bellingham WA</dd>
+        <dt>Edition</dt><dd>One of one</dd>
+      </dl>
+      <div class="swatches" aria-hidden="true">
+        <span class="swatch" style="background:#A9D0DF"></span>
+        <span class="swatch" style="background:#60513D"></span>
+        <span class="swatch" style="background:#4C4638"></span>
+        <span class="swatch" style="background:#EBD9C0"></span>
+        <span class="swatch" style="background:#3E6B52"></span>
+      </div>
+    </aside>
+
+    <main class="content">
+
+      <!-- 1. GALLERY DESCRIPTION -->
+      <section class="block" id="gallery-note" aria-labelledby="gallery-note-title">
+        <p class="block-label">Gallery note</p>
+        <h2 class="block-title" id="gallery-note-title">The short version</h2>
+        <div class="gallery-card">
+          <div class="prose">
+            <p id="gallery-copy">Voronoi is a series of dimensional wall sculptures grown from a cellular pattern generated in code and cut by hand into twelve layers of archival mat-board. The pattern drills down, cell by cell: some plunge to the base, some stop high, and the flat stack becomes a field of ridges, basins, and shadow. Every piece is cut, stacked, glued, and signed by hand in a small studio in Bellingham, Washington. No two share a pattern, and none exist anywhere but on the wall they hang on.</p>
+          </div>
+          <button class="copy-btn" id="copy-blurb" type="button">Copy text</button>
+        </div>
+      </section>
+
+      <!-- 2. THE MECHANICS / BLUEPRINT -->
+      <section class="block blueprint-zone" id="mechanism" aria-labelledby="mechanism-title">
+        <p class="block-label">The mechanism</p>
+        <h2 class="block-title" id="mechanism-title">How a pattern becomes twelve boards</h2>
+
+        <p class="lede" style="margin-bottom:28px;">Every Voronoi piece starts the same way a cracked lakebed does: a field of points, each one claiming the ground closest to it, until the claims meet and harden into cell walls.</p>
+
+        <figure class="diagram">
+          <svg viewBox="0 0 640 220" role="img" aria-labelledby="diagram-title diagram-desc">
+            <title id="diagram-title">Cross-section of a single cell across the layer stack</title>
+            <desc id="diagram-desc">Six plates shown in profile, each one's cut boundary set further inward than the last, converging toward a small terminal point at the base of the stack.</desc>
+            <g fill="none" stroke="#D7E9FB" stroke-opacity="0.35">
+              <line x1="60" y1="20" x2="60" y2="190"/>
+              <line x1="580" y1="20" x2="580" y2="190"/>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#93AAC8">
+              <text x="20" y="24">L1</text>
+              <text x="20" y="192">L12</text>
+            </g>
+            <g stroke="#D7E9FB" stroke-width="1.1">
+              <!-- plate 1: wide notch -->
+              <rect x="70" y="14" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <path d="M 300 14 L 335 34 L 265 34 Z" fill="#0B1526" stroke="#D7E9FB"/>
+              <!-- plate 2 -->
+              <rect x="70" y="46" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <path d="M 300 46 L 328 66 L 272 66 Z" fill="#0B1526" stroke="#D7E9FB"/>
+              <!-- plate 3 -->
+              <rect x="70" y="78" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <path d="M 300 78 L 321 98 L 279 98 Z" fill="#0B1526" stroke="#D7E9FB"/>
+              <!-- plate 4 -->
+              <rect x="70" y="110" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <path d="M 300 110 L 314 130 L 286 130 Z" fill="#0B1526" stroke="#D7E9FB"/>
+              <!-- plate 5 -->
+              <rect x="70" y="142" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <path d="M 300 142 L 308 162 L 292 162 Z" fill="#0B1526" stroke="#D7E9FB"/>
+              <!-- plate 6: terminal point -->
+              <rect x="70" y="174" width="500" height="20" fill="#12213B" stroke-opacity="0.5"/>
+              <circle cx="300" cy="184" r="2.6" fill="#E17C48" stroke="none"/>
+            </g>
+            <g font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#93AAC8">
+              <text x="440" y="30">full inradius</text>
+              <text x="420" y="188">terminal point</text>
+            </g>
+            <g stroke="#93AAC8" stroke-width="1" stroke-dasharray="2,2">
+              <line x1="600" y1="18" x2="600" y2="190"/>
+              <line x1="595" y1="18" x2="605" y2="18"/>
+              <line x1="595" y1="190" x2="605" y2="190"/>
+            </g>
+            <text x="608" y="107" font-family="IBM Plex Mono, monospace" font-size="10.5" fill="#93AAC8" transform="rotate(90 608 107)">0.75 in</text>
+          </svg>
+          <figcaption>One cell, six of its twelve plates, shown in profile. Its walls step inward with every layer until they meet near a point.</figcaption>
+        </figure>
+
+        <div class="prose">
+          <h3>Where the cells come from</h3>
+          <p>The generator scatters a set of points across the panel, the number set by a density parameter, somewhere between 3 and 13 in practice. Around each point grows a cell: every location on the panel that's closer to that point than to any other. Mathematically, a cell is the intersection of half-planes, one bisecting line for every other point in the field, cut away with a routine borrowed from computer graphics called Sutherland-Hodgman clipping. Do that for a few hundred points and you get a Voronoi tessellation, a mosaic of convex cells that tile the panel with no gaps and no overlaps.</p>
+
+          <h3>Why some cells are bigger than others</h3>
+          <p>Raw random points make lopsided cells, tiny slivers next to wide open ones. To even that out, or not, the generator runs a partial version of Lloyd's relaxation: each point nudges toward the center of gravity of its own cell, then the cells get recomputed, four times over. Push the relaxation all the way and you get a tidy honeycomb. Hold it back and the cells stay close to their original scatter, chaotic and uneven. A single parameter slides between those two extremes, and it's usually left somewhere in the middle, uneven enough to feel found rather than drawn.</p>
+
+          <h3>Cells with weight</h3>
+          <p>A handful of points, chosen at random, get an extra pull: a weight added to their claim on the surrounding ground. This turns an ordinary Voronoi diagram into a power diagram, where the boundary between two cells isn't the plain midpoint anymore but a line shifted toward the weaker point, in proportion to the weight difference and the square of the distance between them. The effect reads as focal points. A few cells swell and dominate their neighbors, the way a drop of ink pulls water toward it before it settles.</p>
+
+          <h3>How deep each cell cuts</h3>
+          <p>Twelve layers of mat-board sit in the stack, front to back, and every cell decides for itself how many of them it's going to cut through. That decision comes from Perlin noise sampled at the cell's own position: smooth, spatially coherent randomness, so neighboring cells tend to plunge to similar depths instead of scattering high and low at random. A cell assigned a shallow depth stops carving after two or three layers and shows its color. A cell assigned the full run keeps narrowing, layer after layer, toward a small terminal shape near the back of the panel. How aggressively that terminal shape shrinks, down to a near point, or left as a modest polygon, is its own parameter, blended with more of that same coherent noise so the shrinking itself doesn't look mechanical.</p>
+
+          <h3>From polygons to plates</h3>
+          <p>None of this becomes a sculpture until it's built as twelve separate, physically cuttable plates. For each layer, every cell's polygon gets offset inward by an amount that grows the deeper the layer sits, then subtracted from that layer's solid sheet, over and over, hundreds of times. The offsetting, unioning, and subtracting all runs through a polygon-clipping library, curves flattened and converted to integer coordinates so the boolean math stays stable at high volume, since one unstable operation can silently drop a shape. What comes out the other end is twelve vector files, one plate per layer, each carrying its own frame, its own registration marks for keeping the stack aligned by hand, and, on the front layer only, a signature cut straight through the board. Those twelve files are the blueprint. Sent to a 100-watt CO₂ laser, they cut into acid-free mat-board with an edge you could shave with, and from there it's PVA glue and patience, one plate at a time, pressed and aligned, until a flat stack of paper becomes something with real depth that throws its own shadow before a single light is angled at it.</p>
+        </div>
+      </section>
+
+      <!-- 3. THE CODE -->
+      <section class="block blueprint-zone" id="the-code" aria-labelledby="the-code-title">
+        <p class="block-label">The code</p>
+        <h2 class="block-title" id="the-code-title">The mechanism, condensed</h2>
+        <p class="prose" style="margin-bottom:22px; max-width:58ch;">A tight excerpt of the generator: the part that decides where a cell's walls sit, and how far down it's allowed to cut.</p>
+        <div class="plate">
+          <div class="head">
+            <span class="name">voronoi-core.js</span>
+            <span class="tag">excerpt · condensed</span>
+          </div>
+<pre class="code"><span class="cm">// one bisector per neighbor, clipped into a cell</span>
+<span class="kw">function</span> <span class="fn">cell</span>(site,sites){<span class="kw">let</span> c=BOX;
+ <span class="kw">for</span>(<span class="kw">const</span> s <span class="kw">of</span> sites){<span class="kw">if</span>(s===site)<span class="kw">continue</span>;
+  <span class="kw">const</span> dx=s.x-site.x, dy=s.y-site.y, d2=dx*dx+dy*dy;
+  <span class="kw">const</span> shift=(site.w-s.w)/(2*d2); <span class="cm">// weight bends the wall</span>
+  c=<span class="fn">clipHalfPlane</span>(c,(site.x+s.x)/2+shift*dx,
+                          (site.y+s.y)/2+shift*dy, dx,dy);
+ } <span class="kw">return</span> c;
+}
+
+<span class="cm">// depth + shrink, sampled once per cell, applied 12x</span>
+<span class="kw">const</span> depth = <span class="fn">lerp</span>(minDepth, maxDepth, <span class="fn">noise3</span>(site.x*.06, site.y*.06, seed));
+<span class="kw">for</span>(<span class="kw">let</span> z=0; z&lt;LAYERS; z++){
+ <span class="kw">if</span>(z &lt; LAYERS-depth) <span class="kw">continue</span>;
+ <span class="kw">const</span> t = (LAYERS-1-z)/(depth-1);
+ <span class="kw">const</span> inset = <span class="fn">lerp</span>(gap, site.inradius-terminalR, t);
+ plate[z] = <span class="fn">subtract</span>(plate[z], <span class="fn">offset</span>(cell, -inset));
+}</pre>
+          <p class="plate-caption">Every plate that has ever come off the laser for this series ran a loop shaped exactly like this one, twelve times over, once per layer.</p>
+        </div>
+      </section>
+
+      <!-- 4. THE STORY -->
+      <section class="block" id="origin" aria-labelledby="origin-title">
+        <p class="block-label">Where it started</p>
+        <h2 class="block-title" id="origin-title">Before there was any code</h2>
+        <div class="prose">
+          <p class="lede" style="margin-bottom:1.1em;">Long before there was any code, there was a photograph of a dry lakebed I kept coming back to, the kind of cracked mud pattern you see from an airplane window, each polygon pulling apart from its neighbors under the same slow pressure. I didn't know yet that it was called a Voronoi diagram. I just knew I wanted to hold it.</p>
+
+          <h3>What I actually sketched</h3>
+          <p>The early sketches weren't code, they were cross-sections: side views of a panel with a single cell drilled part-way through, like a core sample. That habit comes from industrial design school, where you learn to think in section before you think in surface, because a product isn't real until you can slice it and see what's inside. I filled a sketchbook with these little drilled cores, some shallow, some going almost all the way through, trying to figure out on paper what a stack of them would look like from across a room.</p>
+
+          <h3>Where the system fought back</h3>
+          <p>Turning that sketch into a generator took longer than I want to admit. The math for a plain Voronoi cell is forgiving. The math for weighting some cells over others, so a few focal points could swell and dominate, is not, and I spent a long stretch chasing a bug where the very first boolean operation of a render would silently return nothing, dropping the bottom layer of the stack before I'd even noticed anything was wrong. It turned out the polygon engine needed a single frame to warm up before it could be trusted. One line of code, buried under a week of doubting the math.</p>
+
+          <h3>The part I still can't fully explain</h3>
+          <p>I know why the depth of each cell reads as coherent instead of noisy: it's sampled from Perlin noise instead of a plain random number, so neighboring cells tend to agree with each other. What I can't explain as cleanly is why that agreement is what makes a panel feel alive rather than just correct. I've watched dozens of these come off the laser, and the ones that hold my attention are never the most symmetrical. They're the ones where a cluster of cells all decided, together, to plunge deep in one corner of the panel, for reasons that live entirely inside a noise function I didn't design to be beautiful. I only asked it to be smooth.</p>
+
+          <h3>The hours after the code is done</h3>
+          <p>Assembly is the part nobody sees. Twelve sheets of mat-board come off the laser warm, and stacking them is slow on purpose: too much PVA and the board cups as it dries, too little and a layer lifts at the corner six months later. I press each plate by hand, check the registration marks, wait, and do the next one. It's the least algorithmic hour in the whole process, and it's the hour that decides whether the piece survives being touched.</p>
+
+          <p>I still keep that lakebed photo pinned near the laser. The panels never look like it exactly. They don't need to. What they kept is the pressure: the sense that every cell got there by pushing against something else, and stopped where the pushing ran out.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer>
+    <p class="prose">The Voronoi series is part of an ongoing generative art practice, built and cut by hand in Bellingham, Washington.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  var btn = document.getElementById('copy-blurb');
+  var text = document.getElementById('gallery-copy');
+  if(!btn || !text) return;
+  btn.addEventListener('click', function(){
+    var value = text.textContent.trim();
+    function done(){
+      btn.textContent = 'Copied';
+      btn.setAttribute('data-copied', 'true');
+      setTimeout(function(){
+        btn.textContent = 'Copy text';
+        btn.removeAttribute('data-copied');
+      }, 1800);
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(value).then(done, done);
+    } else {
+      done();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
