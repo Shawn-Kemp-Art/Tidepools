@@ -127,6 +127,8 @@ var qwarpamp = R.random_int(3,10);
 if(new URLSearchParams(window.location.search).get('wa')){qwarpamp = parseInt(new URLSearchParams(window.location.search).get('wa'))}; //domain warp amplitude, % of the drawing area
 var qsmink = R.random_int(6,20);
 if(new URLSearchParams(window.location.search).get('k')){qsmink = parseInt(new URLSearchParams(window.location.search).get('k'))}; //smooth-min k x100: softness of shared walls
+var qfloor = 0;
+if(new URLSearchParams(window.location.search).get('fl')){qfloor = parseInt(new URLSearchParams(window.location.search).get('fl'))}; //hole floor: 0 = holes taper to a point, 10 = wide flat floor open to the back panel
 var qthickness = 1.5875; // 1/16 in
 if(new URLSearchParams(window.location.search).get('th')){qthickness = parseFloat(new URLSearchParams(window.location.search).get('th'))}; //paper thickness, mm
 var qminwall = 1.8;
@@ -261,6 +263,13 @@ definitions = [
         name: "Blobbiness",
         type: "number",
         default: qblob,
+        options: {min: 0, max: 10, step: 1},
+    },
+    {
+        id: "floor",
+        name: "Hole floor size",
+        type: "number",
+        default: qfloor,
         options: {min: 0, max: 10, step: 1},
     },
     {
@@ -426,6 +435,9 @@ var WARP_NOISE_RANGE = 0.75; // sum of octave amplitudes (0.5 + 0.25)
 var warpScale = $fx.getParam('warpfreq')/(minDim*6);
 var warpAmp = minDim*$fx.getParam('warpamp')/100;
 var sminK = $fx.getParam('smink')/100;
+// Hole floor: the deepest share of every basin is flattened, and all basins go to full depth,
+// so each hole ends in an opening onto the back panel instead of tapering to a point.
+var holeFloor = $fx.getParam('floor')/10*0.5;
 
 // Sutherland-Hodgman clip of polygon by a half-plane (keeps the side where the site lies).
 function clipHalfPlane(poly, mx, my, dx, dy) {
@@ -548,6 +560,12 @@ function makeLobes(blob) {
     return lobes;
 }
 
+// With a hole floor every well goes to full depth; the draw is still taken so the rest of
+// the hash's randomness doesn't shift.
+function wellDepth(r) {
+    return holeFloor > 0 ? 1 : 0.55 + r*0.45;
+}
+
 function makeWells() {
     var centers = placeWellCenters($fx.getParam('wells'), $fx.getParam('placement'));
     var sigmaBase = minDim*$fx.getParam('wellsize')/100;
@@ -562,7 +580,7 @@ function makeWells() {
             sx: sx,
             sy: sx*(1 - aspectVar*R.random_dec()*0.7),
             rot: R.random_dec()*Math.PI,
-            depth: 0.55 + R.random_dec()*0.45,
+            depth: wellDepth(R.random_dec()),
             skewAngle: R.random_dec()*Math.PI*2,
             skewStrength: skew*(0.6 + R.random_dec()*0.4),
             lobes: makeLobes(blob)
@@ -588,7 +606,9 @@ function wellValue(wx, wy, well) {
         lobe += L.a*Math.cos(L.k*phi + L.p);
     }
     var ue = Math.hypot(ux, uy)*compression/Math.max(0.5, lobe);
-    return -well.depth*Math.exp(-0.5*ue*ue);
+    var gauss = Math.exp(-0.5*ue*ue);
+    if (holeFloor > 0) gauss = Math.min(1, gauss/(1 - holeFloor));
+    return -well.depth*gauss;
 }
 
 function smin(a, b, k) {
@@ -607,6 +627,12 @@ function edgeTaper(x, y) {
 
 var deepestWell = -1; // index of the well dominating the last heightAt() sample
 
+// With a hole floor, blending must not dig below the floor: the floor has to be the field's
+// minimum so the first cut layer takes all of it and the back panel shows through.
+function floorClamp(h) {
+    return holeFloor > 0 ? Math.max(h, -1) : h;
+}
+
 function heightAt(x, y, wells, attempt) {
     var wx = x, wy = y;
     if (warpAmp > 0) {
@@ -614,7 +640,7 @@ function heightAt(x, y, wells, attempt) {
         wx += (noise.get(x*warpScale, y*warpScale, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
         wy += (noise.get(x*warpScale + 37.2, y*warpScale + 91.7, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
     }
-    if (poolLayout) return Math.min(poolHeight(wx, wy), 0)*edgeTaper(x, y);
+    if (poolLayout) return floorClamp(Math.min(poolHeight(wx, wy), 0))*edgeTaper(x, y);
     // Blend only the two deepest wells, faded in with depth: Gaussians asymptote to 0,
     // so chaining smin across every well would sink the whole flat rim, and a hard
     // on/off gate leaves a step that shallow contours zigzag along.
@@ -628,7 +654,7 @@ function heightAt(x, y, wells, attempt) {
     var fade = Math.min(1, Math.max(0, (-min1 - 0.01)/0.1));
     fade = fade*fade*(3 - 2*fade);
     var h = min1 + fade*(smin(min1, min2, sminK) - min1);
-    return Math.min(h, 0)*edgeTaper(x, y);
+    return floorClamp(Math.min(h, 0))*edgeTaper(x, y);
 }
 
 function buildField(wells, attempt, step) {
@@ -803,6 +829,7 @@ function poolHeight(x, y) {
     for (var k = 0; k < members.length; k++) {
         var s = members[k];
         var q = g/(g + Math.hypot(x - s.pitX, y - s.pitY));
+        if (holeFloor > 0) q = Math.min(1, q/(1 - holeFloor));
         var hm = -(L.topH + (s.depth - L.topH)*q);
         hard = k == 0 ? hm : Math.min(hard, hm);
         soft = k == 0 ? hm : smin(soft, hm, sminK);
