@@ -101,6 +101,8 @@ var qcolors = R.random_int(1,6);
 if(new URLSearchParams(window.location.search).get('c')){qcolors = new URLSearchParams(window.location.search).get('c')}; //number of colors
 var qsize = "2";
 if(new URLSearchParams(window.location.search).get('s')){qsize = new URLSearchParams(window.location.search).get('s')}; //size
+var qlayers = 12;
+if(new URLSearchParams(window.location.search).get('l')){qlayers = parseInt(new URLSearchParams(window.location.search).get('l'))}; //number of layers
 var qwells = R.random_int(4,14);
 if(new URLSearchParams(window.location.search).get('d')){qwells = parseInt(new URLSearchParams(window.location.search).get('d'))}; //number of wells (complexity)
 
@@ -141,7 +143,7 @@ definitions = [
         id: "layers",
         name: "Layers",
         type: "number",
-        default: 12,
+        default: qlayers,
         options: {
             min: 6,
             max: 24,
@@ -340,10 +342,7 @@ newPalette = this[$fx.getParam('colors1')].concat(this[$fx.getParam('colors2')],
 for (c=0; c<numofcolors; c=c+1){palette[c] = newPalette[R.random_int(0, newPalette.length-1)]}  
 console.log(newPalette);
 
-//randomly assign colors to layers
-for (c=0; c<stacks; c=c+1){colors[c] = palette[R.random_int(0, palette.length-1)];};
-
-//or alternate colors
+//alternate colors
 p=0;for (var c=0; c<stacks; c=c+1){colors[c] = palette[p];p=p+1;if(p==palette.length){p=0};}
 
 console.log(colors);
@@ -574,15 +573,18 @@ function heightAt(x, y, wells, attempt) {
         wx += (noise.get(x*warpScale, y*warpScale, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
         wy += (noise.get(x*warpScale + 37.2, y*warpScale + 91.7, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
     }
-    // Blend only the two deepest wells, and only inside a well: Gaussians asymptote to 0,
-    // so chaining smin across every well would sink the whole flat rim.
+    // Blend only the two deepest wells, faded in with depth: Gaussians asymptote to 0,
+    // so chaining smin across every well would sink the whole flat rim, and a hard
+    // on/off gate leaves a step that shallow contours zigzag along.
     var min1 = 0, min2 = 0;
     for (var i = 0; i < wells.length; i++) {
         var v = wellValue(wx, wy, wells[i]);
         if (v < min1) { min2 = min1; min1 = v; }
         else if (v < min2) { min2 = v; }
     }
-    var h = min1 < -0.02 ? smin(min1, min2, sminK) : min1;
+    var fade = Math.min(1, Math.max(0, (-min1 - 0.01)/0.1));
+    fade = fade*fade*(3 - 2*fade);
+    var h = min1 + fade*(smin(min1, min2, sminK) - min1);
     return Math.min(h, 0)*edgeTaper(x, y);
 }
 
