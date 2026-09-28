@@ -110,7 +110,7 @@ var qaspect = "4:5";
 if(new URLSearchParams(window.location.search).get('aspect')){qaspect = new URLSearchParams(window.location.search).get('aspect')}; //aspect ratio
 
 var qpools = R.random_choice(["overlapping", "separate", "mixed"]);
-if(new URLSearchParams(window.location.search).get('po')){qpools = new URLSearchParams(window.location.search).get('po')}; //pool layout: overlapping, separate, mixed
+if(new URLSearchParams(window.location.search).get('po') && new URLSearchParams(window.location.search).get('po') != "random"){qpools = new URLSearchParams(window.location.search).get('po')}; //pool layout: overlapping, separate, mixed, or random (picked from the hash)
 var qplacement = "random";
 if(new URLSearchParams(window.location.search).get('pm')){qplacement = new URLSearchParams(window.location.search).get('pm')}; //well placement: random, phyllotaxis, poisson, voronoi
 var qwellsize = R.random_int(12,22);
