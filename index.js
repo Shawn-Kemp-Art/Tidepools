@@ -114,7 +114,7 @@ if(new URLSearchParams(window.location.search).get('po')){qpools = new URLSearch
 var qplacement = "random";
 if(new URLSearchParams(window.location.search).get('pm')){qplacement = new URLSearchParams(window.location.search).get('pm')}; //well placement: random, phyllotaxis, poisson, voronoi
 var qwellsize = R.random_int(12,22);
-if(new URLSearchParams(window.location.search).get('ws')){qwellsize = parseInt(new URLSearchParams(window.location.search).get('ws'))}; //average well radius, % of the drawing area
+if(new URLSearchParams(window.location.search).get('ws')){qwellsize = parseInt(new URLSearchParams(window.location.search).get('ws'))}; //average well radius, % of the drawing area; in separate/mixed, the size of the pool cluster
 var qaspectvar = R.random_int(0,10);
 if(new URLSearchParams(window.location.search).get('av')){qaspectvar = parseInt(new URLSearchParams(window.location.search).get('av'))}; //0 = round wells, 10 = strongly elongated
 var qskew = R.random_int(3,8);
@@ -726,8 +726,9 @@ function buildPoolLayout(wells) {
     var style = $fx.getParam('pools');
     var n = wells.length;
     var edgeBand = minDim*0.06;
-    var coverage = Math.min(0.9, Math.max(0.45, $fx.getParam('wellsize')/20));
-    var clusterR = Math.min(Math.sqrt(coverage*drawareawide*drawareahigh/Math.PI), minDim/2 - edgeBand);
+    // Well size sets the cluster radius: 8 -> 0.2 of the short side, 30 -> the largest that fits.
+    var sizeT = ($fx.getParam('wellsize') - 8)/22;
+    var clusterR = Math.min(minDim*(0.2 + 0.24*sizeT), minDim/2 - edgeBand);
     var spacing = clusterR*1.8/Math.sqrt(n);
     var innerR = Math.max(spacing*0.5, clusterR - spacing/2);
 
