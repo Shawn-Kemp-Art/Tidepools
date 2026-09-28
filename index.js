@@ -614,6 +614,7 @@ function heightAt(x, y, wells, attempt) {
         wx += (noise.get(x*warpScale, y*warpScale, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
         wy += (noise.get(x*warpScale + 37.2, y*warpScale + 91.7, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
     }
+    if (poolLayout) return Math.min(poolHeight(wx, wy), 0)*edgeTaper(x, y);
     // Blend only the two deepest wells, faded in with depth: Gaussians asymptote to 0,
     // so chaining smin across every well would sink the whole flat rim, and a hard
     // on/off gate leaves a step that shallow contours zigzag along.
@@ -649,18 +650,22 @@ function buildField(wells, attempt, step) {
     return {cols: cols, rows: rows, stepX: stepX, stepY: stepY, grid: grid, owner: owner, hmin: hmin};
 }
 
-// Pool layout. "overlapping" leaves wells free to merge. "separate" makes every well its
-// own pool; "mixed" groups wells into a few clusters that may overlap internally.
-// Non-overlapping layouts are composed around a focal point: pools are sized largest near
-// it, packed toward it by a small physics pass, then fitted on the real field so pools of
-// different clusters sit POOL_GAP apart and clear of the frame margin.
-var POOL_GAP = Math.max(minWallUnits*3, minDim*0.04);
-var POOL_STEP = 5;
-var POOL_SHRINK = 0.92;
-var POOL_GROW = 1.05;
-var POOL_MAX_GROWTH = 1.4;  // a pool may grow this far past its composed size to take up slack
-var POOL_REACH = 1.5;       // rough top-contour radius of a well, in sigmas, used for packing
-var MIN_WELL_SIGMA = minDim*0.03;
+// Pool layout. "overlapping" uses the Gaussian wells above, free to merge. "separate" and
+// "mixed" build cells instead: pool sites around a focal point, evened out into a power
+// Voronoi pattern and fenced by a ring of ghost sites that shapes the cluster's outline.
+// Each pool's top outline is its cell inset by half a wall, so neighbours share one thin
+// wall; inside, rings blend from the cell shape at the rim toward an off-center pit. In
+// "mixed", neighbouring cells of a cluster merge into one multi-pit basin.
+var poolLayout = null;
+
+function polygonArea(poly) {
+    var a = 0;
+    for (var j = 0; j < poly.length; j++) {
+        var p = poly[j], q = poly[(j+1)%poly.length];
+        a += p.x*q.y - q.x*p.y;
+    }
+    return Math.abs(a)/2;
+}
 
 function assignClusters(wells, style) {
     if (style == "separate") {
@@ -691,178 +696,120 @@ function assignClusters(wells, style) {
     }
 }
 
-// Compose pools around a random focal point: sizes taper from large to small, the largest
-// sits on the focus and the rest follow a golden-angle spiral outward. A packing pass then
-// pulls each well in and pushes apart pools of different clusters until their estimated
-// outlines are POOL_GAP apart. Wells of the same mixed cluster may overlap and are held together.
-function composePools(wells) {
-    var edgeBand = minDim*0.08;
-    var focus = {x: bbox.minX + drawareawide*(0.35 + R.random_dec()*0.3),
-                 y: bbox.minY + drawareahigh*(0.35 + R.random_dec()*0.3)};
-    var sheetCx = bbox.minX + drawareawide/2, sheetCy = bbox.minY + drawareahigh/2;
-    var sumF2 = 0;
-    for (var r = 0; r < wells.length; r++) {
-        var t = wells.length > 1 ? r/(wells.length - 1) : 0;
-        wells[r].sizeFactor = (1 - 0.6*t)*(0.85 + R.random_dec()*0.3);
-        sumF2 += wells[r].sizeFactor*wells[r].sizeFactor;
-    }
-    var coverage = Math.min(0.6, Math.max(0.3, $fx.getParam('wellsize')/35));
-    if ($fx.getParam('pools') == "mixed") coverage *= 1.4; // wells in a cluster overlap, so they cover less than their sum
-    var base = Math.sqrt(coverage*drawareawide*drawareahigh/(Math.PI*POOL_REACH*POOL_REACH*sumF2));
-    for (var i = 0; i < wells.length; i++) {
-        var w = wells[i];
-        var scale = base*w.sizeFactor/((w.sx + w.sy)/2);
-        w.sx *= scale;
-        w.sy *= scale;
-        w.maxSigma = Math.max(w.sx, w.sy)*POOL_MAX_GROWTH;
-    }
-    // Largest first on the focus, then outward along a golden-angle spiral (packing
-    // settles the exact spacing); mixed clusters stay contiguous along the spiral.
-    wells.sort(function(a, b) { return a.cluster - b.cluster || b.sizeFactor - a.sizeFactor; });
+function buildPoolLayout(wells) {
+    var style = $fx.getParam('pools');
+    var n = wells.length;
+    var edgeBand = minDim*0.06;
+    var coverage = Math.min(0.9, Math.max(0.45, $fx.getParam('wellsize')/20));
+    var clusterR = Math.min(Math.sqrt(coverage*drawareawide*drawareahigh/Math.PI), minDim/2 - edgeBand);
+    var spacing = clusterR*1.8/Math.sqrt(n);
+    var innerR = Math.max(spacing*0.5, clusterR - spacing/2);
+
+    // Focal point: off-center but keeping the whole cluster on the sheet.
+    var cx = bbox.minX + drawareawide/2, cy = bbox.minY + drawareahigh/2;
+    var slackX = Math.max(0, drawareawide/2 - clusterR - edgeBand);
+    var slackY = Math.max(0, drawareahigh/2 - clusterR - edgeBand);
+    var focus = {x: cx + (R.random_dec()*2 - 1)*slackX*0.6, y: cy + (R.random_dec()*2 - 1)*slackY*0.6};
+
+    // Size hierarchy: even, large in the middle, or small in the middle.
+    var sizeMode = R.random_int(0, 2);
     var golden = Math.PI*(3 - Math.sqrt(5));
     var spin = R.random_dec()*Math.PI*2;
-    var spacing = base*POOL_REACH*1.2;
-    for (var i = 0; i < wells.length; i++) {
-        var rad = spacing*Math.sqrt(i)*(0.9 + R.random_dec()*0.2);
-        wells[i].cx = focus.x + rad*Math.cos(i*golden + spin);
-        wells[i].cy = focus.y + rad*Math.sin(i*golden + spin);
+    var sites = [];
+    for (var i = 0; i < n; i++) {
+        var t = n > 1 ? i/(n - 1) : 0;
+        var size = sizeMode == 0 ? 1 : sizeMode == 1 ? 1.3 - 0.6*t : 0.7 + 0.6*t;
+        var rad = innerR*Math.sqrt((i + 0.5)/n);
+        sites.push({x: focus.x + rad*Math.cos(i*golden + spin), y: focus.y + rad*Math.sin(i*golden + spin),
+                    w: (size - 1)*spacing*spacing*0.5, real: true, index: i, well: wells[i]});
+    }
+    var ringR = innerR + spacing;
+    var ghostCount = Math.max(6, Math.round(2*Math.PI*ringR/spacing));
+    var p2 = R.random_dec()*Math.PI*2, p3 = R.random_dec()*Math.PI*2;
+    var a2 = 0.12*R.random_dec(), a3 = 0.08*R.random_dec();
+    var all = sites.slice();
+    for (var g = 0; g < ghostCount; g++) {
+        var th = g/ghostCount*Math.PI*2 + spin;
+        var gr = ringR*(1 + a2*Math.sin(2*th + p2) + a3*Math.sin(3*th + p3));
+        all.push({x: focus.x + gr*Math.cos(th), y: focus.y + gr*Math.sin(th), w: 0, real: false});
     }
 
-    for (var it = 0; it < 400; it++) {
-        for (var i = 0; i < wells.length; i++) {
-            wells[i].cx += (focus.x - wells[i].cx)*0.03;
-            wells[i].cy += (focus.y - wells[i].cy)*0.03;
-        }
-        for (var a = 0; a < wells.length; a++) {
-            for (var b = a + 1; b < wells.length; b++) {
-                var A = wells[a], B = wells[b];
-                var ra = POOL_REACH*(A.sx + A.sy)/2, rb = POOL_REACH*(B.sx + B.sy)/2;
-                var same = A.cluster === B.cluster;
-                var need = same ? 0.5*(ra + rb) : ra + rb + POOL_GAP;
-                var dx = B.cx - A.cx, dy = B.cy - A.cy;
-                var d = Math.hypot(dx, dy);
-                if (d < 1e-6) { dx = 1; dy = 0; d = 1e-6; }
-                if (d < need) {
-                    var push = (need - d)/2;
-                    A.cx -= dx/d*push; A.cy -= dy/d*push;
-                    B.cx += dx/d*push; B.cy += dy/d*push;
-                } else if (same && d > 0.8*(ra + rb)) {
-                    var pull = (d - 0.8*(ra + rb))*0.05;
-                    A.cx += dx/d*pull; A.cy += dy/d*pull;
-                    B.cx -= dx/d*pull; B.cy -= dy/d*pull;
-                }
-            }
-        }
-        for (var i = 0; i < wells.length; i++) {
-            var w = wells[i];
-            var rw = POOL_REACH*(w.sx + w.sy)/2 + edgeBand;
-            w.cx = rw*2 < drawareawide ? Math.min(bbox.maxX - rw, Math.max(bbox.minX + rw, w.cx)) : sheetCx;
-            w.cy = rw*2 < drawareahigh ? Math.min(bbox.maxY - rw, Math.max(bbox.minY + rw, w.cy)) : sheetCy;
+    // Lloyd relaxation of the real sites (ghosts stay put) for an even cell pattern.
+    for (var iter = 0; iter < 6; iter++) {
+        for (var i = 0; i < n; i++) {
+            var cell = computeVoronoiCell(i, all);
+            var c = cell ? polygonCentroid(cell) : null;
+            if (c) { sites[i].x = c.x; sites[i].y = c.y; }
         }
     }
-    return focus;
-}
 
-// Wells whose top-layer pool comes within POOL_GAP of another cluster's pool, or reaches
-// the frame margin. Pools are grown by half the gap on the grid; any grown component
-// holding more than one cluster (or touching the margin) flags every well in it.
-function poolConflicts(f, wells, T, edgeBand) {
-    var cols = f.cols, rows = f.rows, n = cols*rows;
-    var inPool = new Uint8Array(n);
-    for (var k = 0; k < n; k++) inPool[k] = f.grid[k] < T && f.owner[k] >= 0 ? 1 : 0;
-    var grown = inPool.slice();
-    var r = Math.ceil(POOL_GAP/2/Math.min(f.stepX, f.stepY));
-    for (var pass = 0; pass < r; pass++) {
-        var prev = grown.slice();
-        for (var j = 0; j < rows; j++) {
-            for (var i = 0; i < cols; i++) {
-                var k = j*cols + i;
-                if (prev[k]) continue;
-                if ((i > 0 && prev[k - 1]) || (i < cols - 1 && prev[k + 1]) ||
-                    (j > 0 && prev[k - cols]) || (j < rows - 1 && prev[k + cols])) grown[k] = 1;
-            }
-        }
-    }
-    var comp = new Int32Array(n).fill(-1);
-    var bad = {};
-    var stack = [];
-    for (var start = 0; start < n; start++) {
-        if (!grown[start] || comp[start] >= 0) continue;
-        var members = {}, clusters = {}, clusterCount = 0, edge = false;
-        comp[start] = start;
-        stack.push(start);
-        while (stack.length) {
-            var c = stack.pop();
-            var ci = c % cols, cj = (c - ci)/cols;
-            if (inPool[c]) {
-                var w = f.owner[c];
-                members[w] = true;
-                if (!clusters[wells[w].cluster]) { clusters[wells[w].cluster] = true; clusterCount++; }
-                var ex = ci*f.stepX, ey = cj*f.stepY;
-                if (ex < edgeBand || ey < edgeBand || drawareawide - ex < edgeBand || drawareahigh - ey < edgeBand) edge = true;
-            }
-            var nbs = [ci > 0 ? c - 1 : -1, ci < cols - 1 ? c + 1 : -1, cj > 0 ? c - cols : -1, cj < rows - 1 ? c + cols : -1];
-            for (var q = 0; q < 4; q++) {
-                var nb = nbs[q];
-                if (nb >= 0 && grown[nb] && comp[nb] < 0) { comp[nb] = start; stack.push(nb); }
-            }
-        }
-        if (clusterCount > 1 || edge) for (var w in members) bad[w] = true;
-    }
-    return bad;
-}
-
-// Grow each unsettled well (up to its maxSigma) until its top-layer pool comes within the
-// gap of another cluster's pool or the frame margin; shrink any that conflict. Returns the
-// wells that survive.
-function fitPools(wells, attempt) {
-    var style = $fx.getParam('pools');
-    var edgeBand = minDim*0.08;
-    for (var iter = 0; iter < 80; iter++) {
-        var forceSettle = iter >= 60; // last passes only shrink, so the loop always ends clean
-        var f = buildField(wells, attempt, POOL_STEP);
-        var T = f.hmin*TOP_RIM;
-        var bad = poolConflicts(f, wells, T, edgeBand), badCount = Object.keys(bad).length;
-        var growing = false;
-        var kept = [];
-        for (var i = 0; i < wells.length; i++) {
-            var w = wells[i];
-            if (bad[i]) {
-                w.sx *= POOL_SHRINK;
-                w.sy *= POOL_SHRINK;
-                w.settled = true;
-                if (Math.max(w.sx, w.sy) < MIN_WELL_SIGMA) continue;
-            } else if (!w.settled && !forceSettle) {
-                w.sx *= POOL_GROW;
-                w.sy *= POOL_GROW;
-                if (Math.max(w.sx, w.sy) > w.maxSigma) w.settled = true;
-                growing = true;
-            }
-            kept.push(w);
-        }
-        if (kept.length < wells.length && !forceSettle) {
-            // A dropped well frees room: let the survivors grow into it.
-            for (var i = 0; i < kept.length; i++) kept[i].settled = false;
-            growing = true;
-        }
-        if (!badCount && !growing) {
-            return kept;
-        }
-        wells = kept;
-    }
-    console.log('[basins] ' + style + ' pools: some pools still outside their territory after 80 steps');
-    return wells;
-}
-
-function separatePools(wells, attempt) {
-    var style = $fx.getParam('pools');
-    if (style == "overlapping") return wells;
+    for (var i = 0; i < n; i++) { wells[i].cx = sites[i].x; wells[i].cy = sites[i].y; }
     assignClusters(wells, style);
-    var focus = composePools(wells);
-    for (var i = 0; i < wells.length; i++) wells[i].settled = false;
-    wells = fitPools(wells, attempt);
-    console.log('[basins] ' + style + ' pools around focal point (' + Math.round(focus.x) + ',' + Math.round(focus.y) + '): ' + wells.length + ' wells kept');
-    return wells;
+    var clusters = {};
+    for (var i = 0; i < n; i++) {
+        var site = sites[i], well = wells[i];
+        site.cluster = well.cluster;
+        site.depth = well.depth;
+        // Pit sits off-center toward skewAngle, so rings bunch against the near wall.
+        var cell = computeVoronoiCell(i, all);
+        var cellR = cell ? Math.sqrt(polygonArea(cell)/Math.PI) : spacing/2;
+        site.pitX = site.x + well.skewStrength*0.75*cellR*Math.cos(well.skewAngle);
+        site.pitY = site.y + well.skewStrength*0.75*cellR*Math.sin(well.skewAngle);
+        (clusters[site.cluster] || (clusters[site.cluster] = [])).push(site);
+    }
+    var dmax = 0;
+    for (var i = 0; i < n; i++) dmax = Math.max(dmax, sites[i].depth);
+    return {
+        all: all, clusters: clusters, style: style, spacing: spacing,
+        wall: Math.max(minWallUnits*1.5, minDim*0.012),
+        round: spacing*0.08,
+        topH: TOP_RIM*dmax,
+        focus: focus, sizeMode: sizeMode
+    };
+}
+
+// Height inside the pool layout. The cell boundary distance is a soft-min over bisectors
+// with every site outside the owner's cluster (rounding the corners); in "mixed" it uses a
+// fixed spacing denominator so it stays continuous across cells of one cluster.
+function poolHeight(x, y) {
+    var L = poolLayout, all = L.all;
+    var owner = null, best = Infinity;
+    for (var i = 0; i < all.length; i++) {
+        var pd = (x - all[i].x)*(x - all[i].x) + (y - all[i].y)*(y - all[i].y) - all[i].w;
+        if (pd < best) { best = pd; owner = all[i]; }
+    }
+    deepestWell = -1;
+    if (!owner.real) return 0;
+    deepestWell = owner.index;
+    var separate = L.style == "separate";
+    var m = Infinity, dists = [];
+    for (var i = 0; i < all.length; i++) {
+        var b = all[i];
+        if (b.real && b.cluster === owner.cluster) continue;
+        var pdb = (x - b.x)*(x - b.x) + (y - b.y)*(y - b.y) - b.w;
+        var denom = separate ? 2*Math.hypot(b.x - owner.x, b.y - owner.y) : 2*L.spacing;
+        var d = (pdb - best)/denom;
+        dists.push(d);
+        if (d < m) m = d;
+    }
+    var sum = 0;
+    for (var i = 0; i < dists.length; i++) sum += Math.exp(-(dists[i] - m)/L.round);
+    var g = m - L.round*Math.log(sum) - L.wall/2;
+    if (g <= 0) return -L.topH*Math.max(0, 1 + g/(L.wall/2));
+    // Several pits in one mixed basin blend with smin, faded in from the rim: at the rim all
+    // members are equal and a full smin would step the height right where the top layer cuts.
+    var members = L.clusters[owner.cluster];
+    var hard = 0, soft = 0;
+    for (var k = 0; k < members.length; k++) {
+        var s = members[k];
+        var q = g/(g + Math.hypot(x - s.pitX, y - s.pitY));
+        var hm = -(L.topH + (s.depth - L.topH)*q);
+        hard = k == 0 ? hm : Math.min(hard, hm);
+        soft = k == 0 ? hm : smin(soft, hm, sminK);
+    }
+    var fade = Math.min(1, g/(L.spacing*0.15));
+    fade = fade*fade*(3 - 2*fade);
+    return hard + fade*(soft - hard);
 }
 
 // Marching squares -> closed rings in Clipper integer space. Crossings are keyed by grid
@@ -1030,7 +977,9 @@ function mm2(unitsSq) { return (unitsSq/(unitsPerMM*unitsPerMM)).toFixed(1); }
 
 var basin = null;
 for (var attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    var wells = separatePools(makeWells(), attempt);
+    var wells = makeWells();
+    poolLayout = $fx.getParam('pools') == "overlapping" ? null : buildPoolLayout(wells);
+    if (poolLayout) console.log('[basins] ' + poolLayout.style + ' pools: ' + wells.length + ' cells around (' + Math.round(poolLayout.focus.x) + ',' + Math.round(poolLayout.focus.y) + '), size mode ' + ['even', 'large center', 'small center'][poolLayout.sizeMode]);
     var field = buildField(wells, attempt);
     var levels = buildLevels(field);
 
