@@ -650,18 +650,16 @@ function buildField(wells, attempt, step) {
 }
 
 // Pool layout. "overlapping" leaves wells free to merge. "separate" makes every well its
-// own pool; "mixed" groups wells into a few clusters that may overlap internally. Each
-// cluster owns the part of the sheet nearest its centers (a Voronoi territory) less half
-// of POOL_GAP and the frame margin; a well whose top-layer pool spills out of its
-// territory shrinks, wells with room to spare grow until they meet their border, and
-// wells that get too small are dropped.
+// own pool; "mixed" groups wells into a few clusters that may overlap internally.
+// Non-overlapping layouts are composed around a focal point: pools are sized largest near
+// it, packed toward it by a small physics pass, then fitted on the real field so pools of
+// different clusters sit POOL_GAP apart and clear of the frame margin.
 var POOL_GAP = Math.max(minWallUnits*3, minDim*0.04);
 var POOL_STEP = 5;
-var POOL_SHRINK = 0.9;
-var POOL_GROW = 1.08;
-var POOL_START = 0.35;
-var POOL_RELAX = 1.0;
-var POOL_RELAX_ROUNDS = 6;
+var POOL_SHRINK = 0.92;
+var POOL_GROW = 1.05;
+var POOL_MAX_GROWTH = 1.4;  // a pool may grow this far past its composed size to take up slack
+var POOL_REACH = 1.5;       // rough top-contour radius of a well, in sigmas, used for packing
 var MIN_WELL_SIGMA = minDim*0.03;
 
 function assignClusters(wells, style) {
@@ -693,69 +691,76 @@ function assignClusters(wells, style) {
     }
 }
 
-// Push apart wells of different clusters that sit closer than an even share of the sheet
-// would allow, so no pool is squeezed to nothing by a neighbour placed on top of it.
-function spreadClusters(wells) {
-    var clusterCount = {};
-    for (var i = 0; i < wells.length; i++) clusterCount[wells[i].cluster] = true;
-    var n = Object.keys(clusterCount).length;
-    var dmin = 0.8*Math.sqrt(drawareawide*drawareahigh/n);
-    var pad = minDim*0.12;
-    for (var iter = 0; iter < 60; iter++) {
-        var moved = false;
+// Compose pools around a random focal point: sizes taper from large to small, the largest
+// sits on the focus and the rest follow a golden-angle spiral outward. A packing pass then
+// pulls each well in and pushes apart pools of different clusters until their estimated
+// outlines are POOL_GAP apart. Wells of the same mixed cluster may overlap and are held together.
+function composePools(wells) {
+    var edgeBand = minDim*0.08;
+    var focus = {x: bbox.minX + drawareawide*(0.35 + R.random_dec()*0.3),
+                 y: bbox.minY + drawareahigh*(0.35 + R.random_dec()*0.3)};
+    var sheetCx = bbox.minX + drawareawide/2, sheetCy = bbox.minY + drawareahigh/2;
+    var sumF2 = 0;
+    for (var r = 0; r < wells.length; r++) {
+        var t = wells.length > 1 ? r/(wells.length - 1) : 0;
+        wells[r].sizeFactor = (1 - 0.6*t)*(0.85 + R.random_dec()*0.3);
+        sumF2 += wells[r].sizeFactor*wells[r].sizeFactor;
+    }
+    var coverage = Math.min(0.6, Math.max(0.3, $fx.getParam('wellsize')/35));
+    if ($fx.getParam('pools') == "mixed") coverage *= 1.4; // wells in a cluster overlap, so they cover less than their sum
+    var base = Math.sqrt(coverage*drawareawide*drawareahigh/(Math.PI*POOL_REACH*POOL_REACH*sumF2));
+    for (var i = 0; i < wells.length; i++) {
+        var w = wells[i];
+        var scale = base*w.sizeFactor/((w.sx + w.sy)/2);
+        w.sx *= scale;
+        w.sy *= scale;
+        w.maxSigma = Math.max(w.sx, w.sy)*POOL_MAX_GROWTH;
+    }
+    // Largest first on the focus, then outward along a golden-angle spiral (packing
+    // settles the exact spacing); mixed clusters stay contiguous along the spiral.
+    wells.sort(function(a, b) { return a.cluster - b.cluster || b.sizeFactor - a.sizeFactor; });
+    var golden = Math.PI*(3 - Math.sqrt(5));
+    var spin = R.random_dec()*Math.PI*2;
+    var spacing = base*POOL_REACH*1.2;
+    for (var i = 0; i < wells.length; i++) {
+        var rad = spacing*Math.sqrt(i)*(0.9 + R.random_dec()*0.2);
+        wells[i].cx = focus.x + rad*Math.cos(i*golden + spin);
+        wells[i].cy = focus.y + rad*Math.sin(i*golden + spin);
+    }
+
+    for (var it = 0; it < 400; it++) {
+        for (var i = 0; i < wells.length; i++) {
+            wells[i].cx += (focus.x - wells[i].cx)*0.03;
+            wells[i].cy += (focus.y - wells[i].cy)*0.03;
+        }
         for (var a = 0; a < wells.length; a++) {
             for (var b = a + 1; b < wells.length; b++) {
-                if (wells[a].cluster === wells[b].cluster) continue;
-                var dx = wells[b].cx - wells[a].cx, dy = wells[b].cy - wells[a].cy;
+                var A = wells[a], B = wells[b];
+                var ra = POOL_REACH*(A.sx + A.sy)/2, rb = POOL_REACH*(B.sx + B.sy)/2;
+                var same = A.cluster === B.cluster;
+                var need = same ? 0.5*(ra + rb) : ra + rb + POOL_GAP;
+                var dx = B.cx - A.cx, dy = B.cy - A.cy;
                 var d = Math.hypot(dx, dy);
-                if (d >= dmin) continue;
-                if (d < 1e-6) { dx = 1; dy = 0; d = 1; }
-                var push = (dmin - d)/2*0.5;
-                wells[a].cx -= dx/d*push; wells[a].cy -= dy/d*push;
-                wells[b].cx += dx/d*push; wells[b].cy += dy/d*push;
-                moved = true;
+                if (d < 1e-6) { dx = 1; dy = 0; d = 1e-6; }
+                if (d < need) {
+                    var push = (need - d)/2;
+                    A.cx -= dx/d*push; A.cy -= dy/d*push;
+                    B.cx += dx/d*push; B.cy += dy/d*push;
+                } else if (same && d > 0.8*(ra + rb)) {
+                    var pull = (d - 0.8*(ra + rb))*0.05;
+                    A.cx += dx/d*pull; A.cy += dy/d*pull;
+                    B.cx -= dx/d*pull; B.cy -= dy/d*pull;
+                }
             }
         }
         for (var i = 0; i < wells.length; i++) {
-            wells[i].cx = Math.min(bbox.maxX - pad, Math.max(bbox.minX + pad, wells[i].cx));
-            wells[i].cy = Math.min(bbox.maxY - pad, Math.max(bbox.minY + pad, wells[i].cy));
+            var w = wells[i];
+            var rw = POOL_REACH*(w.sx + w.sy)/2 + edgeBand;
+            w.cx = rw*2 < drawareawide ? Math.min(bbox.maxX - rw, Math.max(bbox.minX + rw, w.cx)) : sheetCx;
+            w.cy = rw*2 < drawareahigh ? Math.min(bbox.maxY - rw, Math.max(bbox.minY + rw, w.cy)) : sheetCy;
         }
-        if (!moved) break;
     }
-}
-
-function polygonArea(poly) {
-    var a = 0;
-    for (var j = 0; j < poly.length; j++) {
-        var p = poly[j], q = poly[(j+1)%poly.length];
-        a += p.x*q.y - q.x*p.y;
-    }
-    return Math.abs(a)/2;
-}
-
-// Lloyd step: move each pool (or each mixed cluster, as a group) toward the centroid of the
-// sheet area it owns, so pools spread out to use the whole sheet instead of bunching.
-function relaxPools(wells) {
-    var sites = [];
-    for (var i = 0; i < wells.length; i++) sites.push({x: wells[i].cx, y: wells[i].cy});
-    var groups = {};
-    for (var i = 0; i < wells.length; i++) {
-        var cell = computeVoronoiCell(i, sites);
-        if (!cell) continue;
-        var c = polygonCentroid(cell);
-        if (!c) continue;
-        var a = polygonArea(cell);
-        var g = groups[wells[i].cluster] || (groups[wells[i].cluster] = {ax: 0, ay: 0, area: 0, mx: 0, my: 0, n: 0, members: []});
-        g.ax += c.x*a; g.ay += c.y*a; g.area += a;
-        g.mx += wells[i].cx; g.my += wells[i].cy; g.n++;
-        g.members.push(wells[i]);
-    }
-    for (var key in groups) {
-        var g = groups[key];
-        var dx = (g.ax/g.area - g.mx/g.n)*POOL_RELAX;
-        var dy = (g.ay/g.area - g.my/g.n)*POOL_RELAX;
-        for (var m = 0; m < g.members.length; m++) { g.members[m].cx += dx; g.members[m].cy += dy; }
-    }
+    return focus;
 }
 
 // Wells whose top-layer pool comes within POOL_GAP of another cluster's pool, or reaches
@@ -807,12 +812,12 @@ function poolConflicts(f, wells, T, edgeBand) {
     return bad;
 }
 
-// Grow each unsettled well until its top-layer pool reaches its territory border, the gap,
-// or the frame margin; shrink any that spill over. Returns the wells that survive.
+// Grow each unsettled well (up to its maxSigma) until its top-layer pool comes within the
+// gap of another cluster's pool or the frame margin; shrink any that conflict. Returns the
+// wells that survive.
 function fitPools(wells, attempt) {
     var style = $fx.getParam('pools');
     var edgeBand = minDim*0.08;
-    var maxSigma = minDim*0.3;
     for (var iter = 0; iter < 80; iter++) {
         var forceSettle = iter >= 60; // last passes only shrink, so the loop always ends clean
         var f = buildField(wells, attempt, POOL_STEP);
@@ -830,7 +835,7 @@ function fitPools(wells, attempt) {
             } else if (!w.settled && !forceSettle) {
                 w.sx *= POOL_GROW;
                 w.sy *= POOL_GROW;
-                if (Math.max(w.sx, w.sy) > maxSigma) w.settled = true;
+                if (Math.max(w.sx, w.sy) > w.maxSigma) w.settled = true;
                 growing = true;
             }
             kept.push(w);
@@ -853,18 +858,10 @@ function separatePools(wells, attempt) {
     var style = $fx.getParam('pools');
     if (style == "overlapping") return wells;
     assignClusters(wells, style);
-    spreadClusters(wells);
-    // Start small and grow outward so every pool fills the room it has.
-    for (var i = 0; i < wells.length; i++) {
-        wells[i].sx *= POOL_START;
-        wells[i].sy *= POOL_START;
-    }
-    for (var round = 0; round < POOL_RELAX_ROUNDS; round++) {
-        if (round > 0) relaxPools(wells);
-        for (var i = 0; i < wells.length; i++) wells[i].settled = false;
-        wells = fitPools(wells, attempt);
-    }
-    console.log('[basins] ' + style + ' pools: ' + wells.length + ' wells kept after ' + POOL_RELAX_ROUNDS + ' fit/relax rounds');
+    var focus = composePools(wells);
+    for (var i = 0; i < wells.length; i++) wells[i].settled = false;
+    wells = fitPools(wells, attempt);
+    console.log('[basins] ' + style + ' pools around focal point (' + Math.round(focus.x) + ',' + Math.round(focus.y) + '): ' + wells.length + ' wells kept');
     return wells;
 }
 
