@@ -127,8 +127,8 @@ var qwarpamp = R.random_int(3,10);
 if(new URLSearchParams(window.location.search).get('wa')){qwarpamp = parseInt(new URLSearchParams(window.location.search).get('wa'))}; //domain warp amplitude, % of the drawing area
 var qsmink = R.random_int(6,20);
 if(new URLSearchParams(window.location.search).get('k')){qsmink = parseInt(new URLSearchParams(window.location.search).get('k'))}; //smooth-min k x100: softness of shared walls
-var qfloor = 0;
-if(new URLSearchParams(window.location.search).get('fl')){qfloor = parseInt(new URLSearchParams(window.location.search).get('fl'))}; //hole floor: 0 = holes taper to a point, 10 = wide flat floor open to the back panel
+var qfloor = 1;
+if(new URLSearchParams(window.location.search).get('fl')){qfloor = parseInt(new URLSearchParams(window.location.search).get('fl'))}; //hole floor opening onto the back panel: 1 = smallest, 10 = widest
 var qthickness = 1.5875; // 1/16 in
 if(new URLSearchParams(window.location.search).get('th')){qthickness = parseFloat(new URLSearchParams(window.location.search).get('th'))}; //paper thickness, mm
 var qminwall = 1.8;
@@ -270,7 +270,7 @@ definitions = [
         name: "Hole floor size",
         type: "number",
         default: qfloor,
-        options: {min: 0, max: 10, step: 1},
+        options: {min: 1, max: 10, step: 1},
     },
     {
         id: "warpfreq",
@@ -437,7 +437,7 @@ var warpAmp = minDim*$fx.getParam('warpamp')/100;
 var sminK = $fx.getParam('smink')/100;
 // Hole floor: the deepest share of every basin is flattened, and all basins go to full depth,
 // so each hole ends in an opening onto the back panel instead of tapering to a point.
-var holeFloor = $fx.getParam('floor')/10*0.5;
+var holeFloor = 0.05 + ($fx.getParam('floor') - 1)/9*0.45;
 
 // Sutherland-Hodgman clip of polygon by a half-plane (keeps the side where the site lies).
 function clipHalfPlane(poly, mx, my, dx, dy) {
