@@ -101,22 +101,32 @@ var qcolors = R.random_int(1,6);
 if(new URLSearchParams(window.location.search).get('c')){qcolors = new URLSearchParams(window.location.search).get('c')}; //number of colors
 var qsize = "2";
 if(new URLSearchParams(window.location.search).get('s')){qsize = new URLSearchParams(window.location.search).get('s')}; //size
-var qcomplexity = R.random_int(1,10);
-if(new URLSearchParams(window.location.search).get('d')){qcomplexity = parseInt(new URLSearchParams(window.location.search).get('d'))}; //size
-qcomplexity = qcomplexity+3;
+var qwells = R.random_int(4,14);
+if(new URLSearchParams(window.location.search).get('d')){qwells = parseInt(new URLSearchParams(window.location.search).get('d'))}; //number of wells (complexity)
 
 var qaspect = "4:5";
 if(new URLSearchParams(window.location.search).get('aspect')){qaspect = new URLSearchParams(window.location.search).get('aspect')}; //aspect ratio
 
-
-var qvariation = R.random_int(0,10);
-if(new URLSearchParams(window.location.search).get('v')){qvariation = parseInt(new URLSearchParams(window.location.search).get('v'))}; //cell size variation
-var qweighting = R.random_int(0,10);
-if(new URLSearchParams(window.location.search).get('wt')){qweighting = parseInt(new URLSearchParams(window.location.search).get('wt'))}; //weighted/power voronoi focal strength
-var qdepthvar = R.random_int(0,10);
-if(new URLSearchParams(window.location.search).get('dv')){qdepthvar = parseInt(new URLSearchParams(window.location.search).get('dv'))}; //depth variance: 0 = all cells cut full depth, 10 = some cells only cut ~3 layers
-var qtermstyle = R.random_int(1,10);
-if(new URLSearchParams(window.location.search).get('ts')){qtermstyle = parseInt(new URLSearchParams(window.location.search).get('ts'))}; //termination style: 1 = cells stop with large polygons, 10 = cells shrink to tiny points
+var qplacement = "random";
+if(new URLSearchParams(window.location.search).get('pm')){qplacement = new URLSearchParams(window.location.search).get('pm')}; //well placement: random, phyllotaxis, poisson, voronoi
+var qwellsize = R.random_int(12,22);
+if(new URLSearchParams(window.location.search).get('ws')){qwellsize = parseInt(new URLSearchParams(window.location.search).get('ws'))}; //average well radius, % of the drawing area
+var qaspectvar = R.random_int(0,10);
+if(new URLSearchParams(window.location.search).get('av')){qaspectvar = parseInt(new URLSearchParams(window.location.search).get('av'))}; //0 = round wells, 10 = strongly elongated
+var qskew = R.random_int(3,8);
+if(new URLSearchParams(window.location.search).get('sk')){qskew = parseInt(new URLSearchParams(window.location.search).get('sk'))}; //0 = symmetric wells, 10 = lopsided with one steep side
+var qwarpfreq = R.random_int(2,6);
+if(new URLSearchParams(window.location.search).get('wf')){qwarpfreq = parseInt(new URLSearchParams(window.location.search).get('wf'))}; //domain warp frequency
+var qwarpamp = R.random_int(3,10);
+if(new URLSearchParams(window.location.search).get('wa')){qwarpamp = parseInt(new URLSearchParams(window.location.search).get('wa'))}; //domain warp amplitude, % of the drawing area
+var qsmink = R.random_int(6,20);
+if(new URLSearchParams(window.location.search).get('k')){qsmink = parseInt(new URLSearchParams(window.location.search).get('k'))}; //smooth-min k x100: softness of shared walls
+var qthickness = 1.5875; // 1/16 in
+if(new URLSearchParams(window.location.search).get('th')){qthickness = parseFloat(new URLSearchParams(window.location.search).get('th'))}; //paper thickness, mm
+var qminwall = 1.8;
+if(new URLSearchParams(window.location.search).get('mw')){qminwall = parseFloat(new URLSearchParams(window.location.search).get('mw'))}; //minimum wall width, mm
+var qminhole = 10;
+if(new URLSearchParams(window.location.search).get('mh')){qminhole = parseFloat(new URLSearchParams(window.location.search).get('mh'))}; //minimum hole / island area, mm^2
 
 
 
@@ -199,59 +209,81 @@ definitions = [
         options: {options: ["Random","White","Mocha"]},
     },
     {
-        id: "gridsize",
-        name: "Grids",
+        id: "wells",
+        name: "Wells",
         type: "number",
-        default: qcomplexity,
-        options: {
-            min: 3,
-            max: 13,
-            step: 1,
-        },
+        default: qwells,
+        options: {min: 4, max: 14, step: 1},
     },
     {
-        id: "variation",
-        name: "Cell size variation",
-        type: "number",
-        default: qvariation,
-        options: {
-            min: 1,
-            max: 10,
-            step: 1,
-        },
+        id: "placement",
+        name: "Well placement",
+        type: "select",
+        default: qplacement,
+        options: {options: ["random", "phyllotaxis", "poisson", "voronoi"]},
     },
     {
-        id: "weighting",
-        name: "Weighted focal points",
+        id: "wellsize",
+        name: "Well size",
         type: "number",
-        default: qweighting,
-        options: {
-            min: 0,
-            max: 10,
-            step: 1,
-        },
+        default: qwellsize,
+        options: {min: 8, max: 30, step: 1},
     },
     {
-        id: "depthvar",
-        name: "Depth variance",
+        id: "aspectvar",
+        name: "Well elongation",
         type: "number",
-        default: qdepthvar,
-        options: {
-            min: 0,
-            max: 10,
-            step: 1,
-        },
+        default: qaspectvar,
+        options: {min: 0, max: 10, step: 1},
     },
     {
-        id: "termstyle",
-        name: "Termination style",
+        id: "skew",
+        name: "Skew strength",
         type: "number",
-        default: qtermstyle,
-        options: {
-            min: 1,
-            max: 10,
-            step: 1,
-        },
+        default: qskew,
+        options: {min: 0, max: 10, step: 1},
+    },
+    {
+        id: "warpfreq",
+        name: "Warp frequency",
+        type: "number",
+        default: qwarpfreq,
+        options: {min: 1, max: 10, step: 1},
+    },
+    {
+        id: "warpamp",
+        name: "Warp amplitude",
+        type: "number",
+        default: qwarpamp,
+        options: {min: 0, max: 15, step: 1},
+    },
+    {
+        id: "smink",
+        name: "Shared wall softness",
+        type: "number",
+        default: qsmink,
+        options: {min: 2, max: 50, step: 1},
+    },
+    {
+        id: "thickness",
+        name: "Paper thickness (mm)",
+        type: "number",
+        default: qthickness,
+        options: {min: 0.3, max: 3.2, step: 0.0025},
+    },
+    {
+        id: "minwall",
+        name: "Min wall width (mm)",
+        type: "number",
+        default: qminwall,
+        options: {min: 0.5, max: 6, step: 0.1},
+    },
+    {
+        id: "minhole",
+        name: "Min hole area (mm²)",
+        type: "number",
+        default: qminhole,
+        options: {min: 1, max: 100, step: 1},
     },
     {
         id: "matwidth",
@@ -347,282 +379,420 @@ sheet = []; //This will hold each layer
 var px=0;var py=0;var pz=0;var prange=.1; 
 
 
-//define the Voronoi tessellation (deterministic via $fx.rand)
-        var drawareawide = wide-framewidth*2;
-        var drawareahigh = high-framewidth*2;
-        var densityParam = $fx.getParam('gridsize'); // 3..13
-        var avgCellSize = drawareawide / densityParam;
-        var avgCellArea = avgCellSize * avgCellSize;
-        var numSites = Math.max(8, Math.floor((drawareawide * drawareahigh) / avgCellArea));
+//************* Basin relief: height field -> contour levels (deterministic via $fx.rand) *************
 
-        var bbox = {
-            minX: framewidth,
-            minY: framewidth,
-            maxX: wide - framewidth,
-            maxY: high - framewidth
-        };
+var drawareawide = wide-framewidth*2;
+var drawareahigh = high-framewidth*2;
+var minDim = Math.min(drawareawide, drawareahigh);
 
-        var cellGap = minOffset * R.random_num(1, 2);
+var bbox = {
+    minX: framewidth,
+    minY: framewidth,
+    maxX: wide - framewidth,
+    maxY: high - framewidth
+};
 
-        // Helper: Sutherland-Hodgman clip of polygon by a half-plane.
-        // Keeps points where (p-m) . d <= 0 (the side where site s lies).
-        function clipHalfPlane(poly, mx, my, dx, dy) {
-            var out = [];
-            var n = poly.length;
-            if (n < 3) return out;
-            for (var i = 0; i < n; i++) {
-                var s = poly[i];
-                var e = poly[(i + 1) % n];
-                var sd = (s.x - mx) * dx + (s.y - my) * dy;
-                var ed = (e.x - mx) * dx + (e.y - my) * dy;
-                var sIn = sd <= 0;
-                var eIn = ed <= 0;
-                if (sIn) {
-                    if (eIn) {
-                        out.push(e);
-                    } else {
-                        var t = sd / (sd - ed);
-                        out.push({x: s.x + (e.x - s.x) * t, y: s.y + (e.y - s.y) * t});
-                    }
-                } else if (eIn) {
-                    var t = sd / (sd - ed);
-                    out.push({x: s.x + (e.x - s.x) * t, y: s.y + (e.y - s.y) * t});
-                    out.push(e);
-                }
-            }
-            return out;
-        }
+// 100 units = 1 inch at size 1; the size param scales the physical piece up.
+var unitsPerMM = 100*ratio/25.4;
+var paperThickness = $fx.getParam('thickness');
+var minWallUnits = $fx.getParam('minwall')*unitsPerMM;
+var minHoleUnits2 = $fx.getParam('minhole')*unitsPerMM*unitsPerMM;
 
-        // Build one (power) Voronoi cell by intersecting half-planes against every other site.
-        // Sites may carry a weight w; bisector shifts toward the lighter site.
-        // Power diagram: point p is in site s_i's cell iff |p-s_i|^2 - w_i <= |p-s_j|^2 - w_j.
-        // That simplifies to a linear half-plane with the midpoint shifted along (s_j - s_i).
-        function computeVoronoiCell(idx, siteList) {
-            var cell = [
-                {x: bbox.minX, y: bbox.minY},
-                {x: bbox.maxX, y: bbox.minY},
-                {x: bbox.maxX, y: bbox.maxY},
-                {x: bbox.minX, y: bbox.maxY}
-            ];
-            var s = siteList[idx];
-            var sw = s.w || 0;
-            for (var i = 0; i < siteList.length; i++) {
-                if (i === idx) continue;
-                var p = siteList[i];
-                var dx = p.x - s.x;
-                var dy = p.y - s.y;
-                var d2 = dx*dx + dy*dy;
-                if (d2 < 1e-9) continue;
-                var wShift = (sw - (p.w || 0)) / (2 * d2);
-                var mx = (s.x + p.x) * 0.5 + wShift * dx;
-                var my = (s.y + p.y) * 0.5 + wShift * dy;
-                cell = clipHalfPlane(cell, mx, my, dx, dy);
-                if (cell.length < 3) return null;
-            }
-            return cell;
-        }
+var GRID_STEP = 3;                // height field sample spacing, units
+var MAX_ATTEMPTS = 8;             // bounded regeneration when a seed breaks fabrication limits
+var MAX_CLEANUP_FRACTION = 0.03;  // reject when cleanup has to rewrite more than this share of the cut area
 
-        function polygonCentroid(poly) {
-            var cx = 0, cy = 0, area = 0;
-            for (var j = 0; j < poly.length; j++) {
-                var p = poly[j], q = poly[(j+1)%poly.length];
-                var cross = p.x*q.y - q.x*p.y;
-                area += cross;
-                cx += (p.x + q.x) * cross;
-                cy += (p.y + q.y) * cross;
-            }
-            area *= 0.5;
-            if (Math.abs(area) < 1e-6) return null;
-            return {x: cx / (6 * area), y: cy / (6 * area)};
-        }
+// Domain warp reuses the seeded Perlin generator; 2 octaves keeps it low-frequency.
+noise.perlin_octaves = 2;
+var WARP_NOISE_RANGE = 0.75; // sum of octave amplitudes (0.5 + 0.25)
+var warpScale = $fx.getParam('warpfreq')/(minDim*6);
+var warpAmp = minDim*$fx.getParam('warpamp')/100;
+var sminK = $fx.getParam('smink')/100;
 
-        // Inward polygon offset via Clipper (returns largest resulting piece, or null).
-        function offsetPolygonClipper(points, delta) {
-            if (!points || points.length < 3) return null;
-            var co = new ClipperLib.ClipperOffset();
-            var scaled = new Array(points.length);
-            for (var k = 0; k < points.length; k++) {
-                scaled[k] = { X: Math.round(points[k].x * CLIP_SCALE), Y: Math.round(points[k].y * CLIP_SCALE) };
-            }
-            co.AddPath(scaled, ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
-            var solution = new ClipperLib.Paths();
-            co.Execute(solution, delta * CLIP_SCALE);
-            if (!solution || solution.length === 0) return null;
-            var best = null, bestArea = 0;
-            for (var s = 0; s < solution.length; s++) {
-                if (solution[s].length < 3) continue;
-                var a = Math.abs(ClipperLib.Clipper.Area(solution[s]));
-                if (a > bestArea) { bestArea = a; best = solution[s]; }
-            }
-            if (!best) return null;
-            var out = new Array(best.length);
-            for (var k = 0; k < best.length; k++) {
-                out[k] = {x: best[k].X / CLIP_SCALE, y: best[k].Y / CLIP_SCALE};
-            }
-            return out;
-        }
-
-        // Seed sites (deterministic)
-        var sites = [];
-        for (var si = 0; si < numSites; si++) {
-            sites.push({
-                x: bbox.minX + R.random_dec() * (bbox.maxX - bbox.minX),
-                y: bbox.minY + R.random_dec() * (bbox.maxY - bbox.minY),
-                w: 0
-            });
-        }
-
-        // Partial Lloyd's relaxation — variation controls how far each iteration
-        // moves a site toward its cell centroid.
-        // variation 1 = full relaxation (even cells), 10 = minimal relaxation
-        // (nearly raw random distribution = significant size variation).
-        var variation = $fx.getParam('variation');
-        var variationT = (variation - 1) / 9; // 0..1
-        var blend = 1.0 - variationT * 0.96; // 1.0 at v=1, 0.04 at v=10
-        var relaxIters = 4;
-        for (var iter = 0; iter < relaxIters; iter++) {
-            var relaxed = [];
-            for (var i = 0; i < sites.length; i++) {
-                var vc = computeVoronoiCell(i, sites);
-                if (!vc) { relaxed.push(sites[i]); continue; }
-                var cc = polygonCentroid(vc);
-                if (!cc) { relaxed.push(sites[i]); continue; }
-                relaxed.push({
-                    x: sites[i].x + (cc.x - sites[i].x) * blend,
-                    y: sites[i].y + (cc.y - sites[i].y) * blend,
-                    w: sites[i].w
-                });
-            }
-            sites = relaxed;
-        }
-
-        // Power Voronoi — weight each focal site proportional to its own local
-        // spacing so the effect stays consistent across densities.
-        // For two sites A, B at distance d: weight w on A extends A's cell boundary
-        // from d/2 to d/2 + w/(2d). So radius multiplier = 1 + w/d^2.
-        // We set w = focalMult * d_nearest^2.
-        //   wt=1  -> focalMult ~ 0.3  (~1.3x radius, subtle)
-        //   wt=10 -> focalMult ~ 5.0  (~6x radius, strongly dominant)
-        var weighting = $fx.getParam('weighting');
-        console.log('weighting: ' + weighting);
-        if (weighting > 0) {
-            var focalCount = Math.max(1, Math.floor(sites.length * 0.03 + weighting * 0.5));
-            if (focalCount > sites.length) focalCount = sites.length;
-            var focalMult = 0.3 + (weighting - 1) * (4.7 / 9);
-
-            // Deterministic Fisher-Yates shuffle over $fx.rand
-            var focalIndices = [];
-            for (var fi = 0; fi < sites.length; fi++) focalIndices.push(fi);
-            for (var fi = focalIndices.length - 1; fi > 0; fi--) {
-                var fj = Math.floor(R.random_dec() * (fi + 1));
-                var ftmp = focalIndices[fi]; focalIndices[fi] = focalIndices[fj]; focalIndices[fj] = ftmp;
-            }
-            for (var fk = 0; fk < focalCount; fk++) {
-                var idx = focalIndices[fk];
-                var nearestD2 = Infinity;
-                for (var fj = 0; fj < sites.length; fj++) {
-                    if (fj === idx) continue;
-                    var fdx = sites[fj].x - sites[idx].x;
-                    var fdy = sites[fj].y - sites[idx].y;
-                    var fd2 = fdx*fdx + fdy*fdy;
-                    if (fd2 < nearestD2) nearestD2 = fd2;
-                }
-                sites[idx].w = nearestD2 * focalMult * R.random_num(0.6, 1.0);
-            }
-        }
-
-        // Final cells with per-cell attributes
-        var cells = [];
-        var firstVoronoiLayer = stacks - 1; // voronoi now cuts the top layer too
-        // Depth variance: 0 = every cell cuts full depth, 10 = shallowest cells stop at ~3 layers.
-        var depthvar = $fx.getParam('depthvar');
-        var maxDepth = firstVoronoiLayer; // deepest cuts still leave layer 0 solid
-        var minDepth = maxDepth - Math.floor((maxDepth - 3) * (depthvar / 10));
-        if (minDepth < 3) minDepth = 3;
-        if (minDepth > maxDepth) minDepth = maxDepth;
-        // Termination style: 1 = cells stop with large terminal polygons,
-        // 10 = cells shrink to tiny absolute-size points regardless of cell size.
-        // We target a terminal polygon radius directly — so focal (big) cells
-        // also shrink small at ts=10 instead of always being 10% of their inradius.
-        var termstyle = $fx.getParam('termstyle');
-        var termT = (termstyle - 1) / 9; // 0..1
-        for (var i = 0; i < sites.length; i++) {
-            var polygon = computeVoronoiCell(i, sites);
-            if (!polygon || polygon.length < 3) continue;
-
-            // Inradius: min perpendicular distance from the polygon CENTROID to any edge.
-            // Using the centroid (not the site) handles cells truncated by the bbox —
-            // sites can be very near a bbox edge while the cell is still visually large.
-            var cx = 0, cy = 0, cArea = 0;
-            for (var k = 0; k < polygon.length; k++) {
-                var ca = polygon[k];
-                var cb = polygon[(k + 1) % polygon.length];
-                var cross = ca.x * cb.y - cb.x * ca.y;
-                cArea += cross;
-                cx += (ca.x + cb.x) * cross;
-                cy += (ca.y + cb.y) * cross;
-            }
-            cArea *= 0.5;
-            if (Math.abs(cArea) > 1e-6) {
-                cx /= 6 * cArea;
-                cy /= 6 * cArea;
+// Sutherland-Hodgman clip of polygon by a half-plane (keeps the side where the site lies).
+function clipHalfPlane(poly, mx, my, dx, dy) {
+    var out = [];
+    var n = poly.length;
+    if (n < 3) return out;
+    for (var i = 0; i < n; i++) {
+        var s = poly[i];
+        var e = poly[(i + 1) % n];
+        var sd = (s.x - mx) * dx + (s.y - my) * dy;
+        var ed = (e.x - mx) * dx + (e.y - my) * dy;
+        if (sd <= 0) {
+            if (ed <= 0) {
+                out.push(e);
             } else {
-                cx = sites[i].x; cy = sites[i].y;
+                var t = sd / (sd - ed);
+                out.push({x: s.x + (e.x - s.x) * t, y: s.y + (e.y - s.y) * t});
             }
-            var minDist = Infinity;
-            for (var k = 0; k < polygon.length; k++) {
-                var a = polygon[k];
-                var b = polygon[(k + 1) % polygon.length];
-                var ex = b.x - a.x, ey = b.y - a.y;
-                var elen = Math.hypot(ex, ey);
-                if (elen < 1e-9) continue;
-                ex /= elen; ey /= elen;
-                var perp = Math.abs((cx - a.x) * ey - (cy - a.y) * ex);
-                if (perp < minDist) minDist = perp;
-            }
-            var inradius = Math.max(1, minDist);
-
-            // Depth (how many voronoi layers this cell cuts through).
-            // Perlin noise seeded from $fx.rand gives spatially coherent variation.
-            var nxs = sites[i].x * prange * 0.6;
-            var nys = sites[i].y * prange * 0.6;
-            var depthNoise = noise.get(nxs, nys); // 0..1-ish
-            if (depthNoise < 0) depthNoise = 0;
-            if (depthNoise > 1) depthNoise = 1;
-            var depth = minDepth + Math.floor(depthNoise * (maxDepth - minDepth + 1));
-            if (depth > maxDepth) depth = maxDepth;
-            if (depth < minDepth) depth = minDepth;
-
-            // endLayer: lowest z (inclusive) that still gets cut by this cell.
-            var endLayer = firstVoronoiLayer - (depth - 1);
-            if (endLayer < 1) endLayer = 1;
-
-            // terminalR: target radius of the cell's polygon at its deepest cut.
-            // At ts=10 this is a small absolute value (≈ cellGap*2), so even focal
-            // cells shrink to a tiny point. At ts=1 it's ~inradius*0.5, leaving a
-            // large polygon visible. Per-cell variation via perlin noise.
-            var termNoise = noise.get(sites[i].x * prange * 0.4 + 1000,
-                                      sites[i].y * prange * 0.4 + 1000);
-            if (termNoise < 0) termNoise = 0;
-            if (termNoise > 1) termNoise = 1;
-            var smallR = 2; // near-zero absolute terminal radius at ts=10
-            var largeR = Math.max(smallR + 1, inradius * 0.5);
-            // Linear ts blend for mean; spread is biggest at ts=5.5, zero at extremes.
-            var centerR = largeR * (1 - termT) + smallR * termT;
-            var spreadHalf = Math.min(termT, 1 - termT) * (largeR - smallR);
-            var terminalR = centerR + (termNoise - 0.5) * 2 * spreadHalf;
-            if (terminalR < smallR) terminalR = smallR;
-            if (terminalR > largeR) terminalR = largeR;
-
-            cells.push({
-                site: sites[i],
-                polygon: polygon,
-                inradius: inradius,
-                endLayer: endLayer,
-                terminalR: terminalR
-            });
+        } else if (ed <= 0) {
+            var t = sd / (sd - ed);
+            out.push({x: s.x + (e.x - s.x) * t, y: s.y + (e.y - s.y) * t});
+            out.push(e);
         }
-        console.log('Voronoi cells: ' + cells.length);
+    }
+    return out;
+}
+
+function computeVoronoiCell(idx, siteList) {
+    var cell = [
+        {x: bbox.minX, y: bbox.minY},
+        {x: bbox.maxX, y: bbox.minY},
+        {x: bbox.maxX, y: bbox.maxY},
+        {x: bbox.minX, y: bbox.maxY}
+    ];
+    var s = siteList[idx];
+    for (var i = 0; i < siteList.length; i++) {
+        if (i === idx) continue;
+        var p = siteList[i];
+        var dx = p.x - s.x;
+        var dy = p.y - s.y;
+        if (dx*dx + dy*dy < 1e-9) continue;
+        cell = clipHalfPlane(cell, (s.x + p.x) * 0.5, (s.y + p.y) * 0.5, dx, dy);
+        if (cell.length < 3) return null;
+    }
+    return cell;
+}
+
+function polygonCentroid(poly) {
+    var cx = 0, cy = 0, area = 0;
+    for (var j = 0; j < poly.length; j++) {
+        var p = poly[j], q = poly[(j+1)%poly.length];
+        var cross = p.x*q.y - q.x*p.y;
+        area += cross;
+        cx += (p.x + q.x) * cross;
+        cy += (p.y + q.y) * cross;
+    }
+    area *= 0.5;
+    if (Math.abs(area) < 1e-6) return null;
+    return {x: cx / (6 * area), y: cy / (6 * area)};
+}
+
+function placeWellCenters(count, mode) {
+    var pad = minDim*0.12;
+    var randomPoint = function() {
+        return {x: bbox.minX + pad + R.random_dec()*(drawareawide - 2*pad),
+                y: bbox.minY + pad + R.random_dec()*(drawareahigh - 2*pad)};
+    };
+    var centers = [];
+    if (mode == "phyllotaxis") {
+        // Golden-angle spiral, stretched to the drawing area's proportions.
+        var golden = Math.PI*(3 - Math.sqrt(5));
+        var spin = R.random_dec()*Math.PI*2;
+        var cx = bbox.minX + drawareawide/2, cy = bbox.minY + drawareahigh/2;
+        var rx = drawareawide/2 - pad, ry = drawareahigh/2 - pad;
+        for (var i = 0; i < count; i++) {
+            var r = Math.sqrt((i + 0.5)/count);
+            var theta = i*golden + spin;
+            centers.push({x: cx + r*rx*Math.cos(theta), y: cy + r*ry*Math.sin(theta)});
+        }
+    } else if (mode == "poisson") {
+        // Dart throwing with a shrinking radius so dense counts still fill.
+        var minDist = 0.7*Math.sqrt(drawareawide*drawareahigh/count);
+        var tries = 0;
+        while (centers.length < count) {
+            var p = randomPoint();
+            var ok = true;
+            for (var c = 0; c < centers.length; c++) {
+                if (Math.hypot(centers[c].x - p.x, centers[c].y - p.y) < minDist) { ok = false; break; }
+            }
+            if (ok) centers.push(p);
+            if (++tries % 200 == 0) minDist *= 0.9;
+        }
+    } else if (mode == "voronoi") {
+        // Lloyd-relaxed random sites: even Voronoi spacing.
+        for (var i = 0; i < count; i++) centers.push(randomPoint());
+        for (var iter = 0; iter < 6; iter++) {
+            var relaxed = [];
+            for (var i = 0; i < centers.length; i++) {
+                var vc = computeVoronoiCell(i, centers);
+                var cc = vc ? polygonCentroid(vc) : null;
+                relaxed.push(cc || centers[i]);
+            }
+            centers = relaxed;
+        }
+    } else {
+        for (var i = 0; i < count; i++) centers.push(randomPoint());
+    }
+    return centers;
+}
+
+function makeWells() {
+    var centers = placeWellCenters($fx.getParam('wells'), $fx.getParam('placement'));
+    var sigmaBase = minDim*$fx.getParam('wellsize')/100;
+    var aspectVar = $fx.getParam('aspectvar')/10;
+    var skew = $fx.getParam('skew')/10;
+    var wells = [];
+    for (var i = 0; i < centers.length; i++) {
+        var sx = sigmaBase*(0.75 + R.random_dec()*0.5);
+        wells.push({
+            cx: centers[i].x, cy: centers[i].y,
+            sx: sx,
+            sy: sx*(1 - aspectVar*R.random_dec()*0.7),
+            rot: R.random_dec()*Math.PI,
+            depth: 0.55 + R.random_dec()*0.45,
+            skewAngle: R.random_dec()*Math.PI*2,
+            skewStrength: skew*(0.6 + R.random_dec()*0.4)
+        });
+    }
+    return wells;
+}
+
+// Anisotropic Gaussian well, skewed: the low point shifts toward skewAngle and the
+// opposite side's radius is compressed, so contours bunch up on that steep side.
+function wellValue(wx, wy, well) {
+    var dx = wx - well.cx, dy = wy - well.cy;
+    var c = Math.cos(-well.rot), s = Math.sin(-well.rot);
+    var nx = (dx*c - dy*s)/well.sx, ny = (dx*s + dy*c)/well.sy;
+    var ux = nx - well.skewStrength*0.5*Math.cos(well.skewAngle);
+    var uy = ny - well.skewStrength*0.5*Math.sin(well.skewAngle);
+    var compression = 1 + well.skewStrength*Math.cos(Math.atan2(uy, ux) - well.skewAngle);
+    compression = Math.min(2.0, Math.max(0.3, compression));
+    var ue = Math.hypot(ux, uy)*compression;
+    return -well.depth*Math.exp(-0.5*ue*ue);
+}
+
+function smin(a, b, k) {
+    var h = Math.max(k - Math.abs(a - b), 0)/k;
+    return Math.min(a, b) - h*h*k*0.25;
+}
+
+// Forces the field back to the flat rim near the frame so every contour closes inside the sheet.
+function edgeTaper(x, y) {
+    var d = Math.min(x - bbox.minX, bbox.maxX - x, y - bbox.minY, bbox.maxY - y);
+    var t = d/(minDim*0.08);
+    if (t >= 1) return 1;
+    if (t <= 0) return 0;
+    return t*t*(3 - 2*t);
+}
+
+function heightAt(x, y, wells, attempt) {
+    var wx = x, wy = y;
+    if (warpAmp > 0) {
+        var nz = attempt*7.3;
+        wx += (noise.get(x*warpScale, y*warpScale, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
+        wy += (noise.get(x*warpScale + 37.2, y*warpScale + 91.7, nz)/WARP_NOISE_RANGE - 0.5)*2*warpAmp;
+    }
+    // Blend only the two deepest wells, and only inside a well: Gaussians asymptote to 0,
+    // so chaining smin across every well would sink the whole flat rim.
+    var min1 = 0, min2 = 0;
+    for (var i = 0; i < wells.length; i++) {
+        var v = wellValue(wx, wy, wells[i]);
+        if (v < min1) { min2 = min1; min1 = v; }
+        else if (v < min2) { min2 = v; }
+    }
+    var h = min1 < -0.02 ? smin(min1, min2, sminK) : min1;
+    return Math.min(h, 0)*edgeTaper(x, y);
+}
+
+function buildField(wells, attempt) {
+    var cols = Math.floor(drawareawide/GRID_STEP) + 1;
+    var rows = Math.floor(drawareahigh/GRID_STEP) + 1;
+    var stepX = drawareawide/(cols - 1), stepY = drawareahigh/(rows - 1);
+    var grid = new Float64Array(cols*rows);
+    var hmin = 0;
+    for (var j = 0; j < rows; j++) {
+        for (var i = 0; i < cols; i++) {
+            var v = heightAt(bbox.minX + i*stepX, bbox.minY + j*stepY, wells, attempt);
+            grid[j*cols + i] = v;
+            if (v < hmin) hmin = v;
+        }
+    }
+    return {cols: cols, rows: rows, stepX: stepX, stepY: stepY, grid: grid, hmin: hmin};
+}
+
+// Marching squares -> closed rings in Clipper integer space. Crossings are keyed by grid
+// edge id so neighbouring cells share exact endpoints and every ring closes.
+function contourRings(field, T) {
+    var cols = field.cols, rows = field.rows, g = field.grid;
+    var edgePts = new Map();
+    function edgePoint(id) {
+        var p = edgePts.get(id);
+        if (p) return p;
+        var node = id >> 1;
+        var i = node % cols, j = (node - i)/cols;
+        var a = g[node], b, x, y;
+        if (id & 1) { // vertical edge (i,j)-(i,j+1)
+            b = g[node + cols];
+            x = bbox.minX + i*field.stepX;
+            y = bbox.minY + (j + (T - a)/(b - a))*field.stepY;
+        } else {      // horizontal edge (i,j)-(i+1,j)
+            b = g[node + 1];
+            x = bbox.minX + (i + (T - a)/(b - a))*field.stepX;
+            y = bbox.minY + j*field.stepY;
+        }
+        p = {X: Math.round(x*CLIP_SCALE), Y: Math.round(y*CLIP_SCALE)};
+        edgePts.set(id, p);
+        return p;
+    }
+    var segs = [];
+    var edgeSegs = new Map();
+    function addSeg(e1, e2) {
+        var k = segs.length;
+        segs.push([e1, e2]);
+        (edgeSegs.get(e1) || edgeSegs.set(e1, []).get(e1)).push(k);
+        (edgeSegs.get(e2) || edgeSegs.set(e2, []).get(e2)).push(k);
+    }
+    for (var j = 0; j < rows - 1; j++) {
+        for (var i = 0; i < cols - 1; i++) {
+            var n = j*cols + i;
+            var tl = g[n], tr = g[n + 1], bl = g[n + cols], br = g[n + cols + 1];
+            var code = (bl < T ? 1 : 0) | (br < T ? 2 : 0) | (tr < T ? 4 : 0) | (tl < T ? 8 : 0);
+            if (code === 0 || code === 15) continue;
+            var eT = n*2, eB = (n + cols)*2, eL = n*2 + 1, eR = (n + 1)*2 + 1;
+            var centerIn = (tl + tr + bl + br)/4 < T;
+            switch (code) {
+                case 1: case 14: addSeg(eL, eB); break;
+                case 2: case 13: addSeg(eB, eR); break;
+                case 3: case 12: addSeg(eL, eR); break;
+                case 4: case 11: addSeg(eR, eT); break;
+                case 6: case 9:  addSeg(eB, eT); break;
+                case 7: case 8:  addSeg(eL, eT); break;
+                case 5:  // bl + tr inside
+                    if (centerIn) { addSeg(eL, eT); addSeg(eB, eR); } else { addSeg(eL, eB); addSeg(eR, eT); }
+                    break;
+                case 10: // br + tl inside
+                    if (centerIn) { addSeg(eL, eB); addSeg(eR, eT); } else { addSeg(eL, eT); addSeg(eB, eR); }
+                    break;
+            }
+        }
+    }
+    var used = new Uint8Array(segs.length);
+    var rings = [];
+    for (var s = 0; s < segs.length; s++) {
+        if (used[s]) continue;
+        var ring = [];
+        var startEdge = segs[s][0], edge = segs[s][1], cur = s;
+        used[cur] = 1;
+        ring.push(edgePoint(startEdge));
+        while (edge !== startEdge) {
+            ring.push(edgePoint(edge));
+            var pair = edgeSegs.get(edge);
+            var next = pair[0] === cur ? pair[1] : pair[0];
+            if (next === undefined || used[next]) break;
+            used[next] = 1;
+            edge = segs[next][0] === edge ? segs[next][1] : segs[next][0];
+            cur = next;
+        }
+        if (ring.length >= 3) rings.push(ring);
+    }
+    return rings;
+}
+
+function clipperUnion(paths, fillType) {
+    var c = new ClipperLib.Clipper();
+    c.AddPaths(paths, ClipperLib.PolyType.ptSubject, true);
+    var sol = new ClipperLib.Paths();
+    c.Execute(ClipperLib.ClipType.ctUnion, sol, fillType, fillType);
+    return sol;
+}
+
+function clipperOffset(paths, delta) {
+    var co = new ClipperLib.ClipperOffset(2, 0.25*CLIP_SCALE);
+    co.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    var sol = new ClipperLib.Paths();
+    co.Execute(sol, delta*CLIP_SCALE);
+    return sol;
+}
+
+function netArea(paths) {
+    var a = 0;
+    for (var i = 0; i < paths.length; i++) a += ClipperLib.Clipper.Area(paths[i]);
+    return a/(CLIP_SCALE*CLIP_SCALE);
+}
+
+// Region of the sheet below height T (what gets cut), cleaned for the laser:
+// opening drops cut slivers narrower than the min wall, closing fills material walls
+// thinner than it, then holes and islands under the min area are removed.
+function levelRegion(field, T) {
+    var raw = clipperUnion(contourRings(field, T), ClipperLib.PolyFillType.pftEvenOdd);
+    var half = minWallUnits/2;
+    var opened = clipperOffset(clipperOffset(raw, -half), half);
+    var closed = clipperOffset(clipperOffset(opened, half), -half);
+    var kept = [];
+    var report = {rawArea: netArea(raw), holes: 0, islands: 0, droppedArea: 0};
+    for (var i = 0; i < closed.length; i++) {
+        var a = ClipperLib.Clipper.Area(closed[i])/(CLIP_SCALE*CLIP_SCALE);
+        if (Math.abs(a) < minHoleUnits2) {
+            if (a > 0) report.holes++; else report.islands++;
+            report.droppedArea += Math.abs(a);
+        } else {
+            kept.push(closed[i]);
+        }
+    }
+    report.sliverArea = Math.max(0, report.rawArea - netArea(opened));
+    report.wallArea = Math.max(0, netArea(closed) - netArea(opened));
+    return {paths: clipperUnion(kept, ClipperLib.PolyFillType.pftPositive), report: report};
+}
+
+// Tightest in-plan ledge between consecutive layers, from the field's steepest slope.
+function tightestLedgeMM(field) {
+    var mmPerUnit = 1/unitsPerMM;
+    var mmPerHeight = stacks*paperThickness/(-field.hmin);
+    var worst = Infinity;
+    var g = field.grid, cols = field.cols;
+    for (var j = 1; j < field.rows - 1; j++) {
+        for (var i = 1; i < cols - 1; i++) {
+            var n = j*cols + i;
+            if (g[n] > -1e-4) continue;
+            var gx = (g[n + 1] - g[n - 1])/(2*field.stepX);
+            var gy = (g[n + cols] - g[n - cols])/(2*field.stepY);
+            var slope = Math.hypot(gx, gy)*mmPerHeight/mmPerUnit;
+            if (slope > 1e-9) worst = Math.min(worst, paperThickness/slope);
+        }
+    }
+    return worst;
+}
+
+// Level z (1..stacks-1) cuts everything below its threshold; layer 0 stays a solid back panel.
+function buildLevels(field) {
+    var levels = [null];
+    for (var z = 1; z < stacks; z++) {
+        levels.push(levelRegion(field, field.hmin*(1 - z/stacks)));
+    }
+    return levels;
+}
+
+function mm2(unitsSq) { return (unitsSq/(unitsPerMM*unitsPerMM)).toFixed(1); }
+
+var basin = null;
+for (var attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    var wells = makeWells();
+    var field = buildField(wells, attempt);
+    var levels = buildLevels(field);
+
+    var totalCut = 0, totalAltered = 0, problems = [];
+    for (var z = 1; z < stacks; z++) {
+        var r = levels[z].report;
+        totalCut += r.rawArea;
+        totalAltered += r.sliverArea + r.wallArea + r.droppedArea;
+        var bits = [];
+        if (r.wallArea > 1) bits.push('thin walls filled ' + mm2(r.wallArea) + 'mm²');
+        if (r.sliverArea > 1) bits.push('slivers removed ' + mm2(r.sliverArea) + 'mm²');
+        if (r.holes) bits.push(r.holes + ' hole(s) under min area');
+        if (r.islands) bits.push(r.islands + ' island(s) under min area');
+        if (bits.length) problems.push('layer ' + z + ': ' + bits.join(', '));
+    }
+    var alteredFraction = totalCut > 0 ? totalAltered/totalCut : 1;
+    var candidate = {wells: wells, field: field, levels: levels, attempt: attempt + 1, alteredFraction: alteredFraction};
+    if (!basin || alteredFraction < basin.alteredFraction) basin = candidate;
+
+    if (totalCut <= 0) {
+        console.log('[basins] attempt ' + (attempt + 1) + ' rejected: no basin reaches the top layer');
+        continue;
+    }
+    if (alteredFraction <= MAX_CLEANUP_FRACTION) {
+        console.log('[basins] attempt ' + (attempt + 1) + ' accepted: cleanup altered ' + (alteredFraction*100).toFixed(1) + '% of cut area' + (problems.length ? ' (' + problems.join('; ') + ')' : ''));
+        basin = candidate;
+        break;
+    }
+    console.log('[basins] attempt ' + (attempt + 1) + ' rejected: cleanup altered ' + (alteredFraction*100).toFixed(1) + '% of cut area, limit ' + (MAX_CLEANUP_FRACTION*100) + '% (' + problems.join('; ') + ')');
+    if (attempt == MAX_ATTEMPTS - 1) {
+        console.log('[basins] no attempt within limits; using attempt ' + basin.attempt + ' (' + (basin.alteredFraction*100).toFixed(1) + '% altered), cleaned geometry still meets wall/area minimums');
+    }
+}
+console.log('[basins] ' + basin.wells.length + ' wells, ' + $fx.getParam('placement') + ' placement, tightest ledge ' + tightestLedgeMM(basin.field).toFixed(2) + 'mm');
 
 
 
@@ -660,36 +830,9 @@ for (z = 0; z < stacks; z++) {
 
 
         
-for (var i = 0; i < cells.length; i++) {
-    var cell = cells[i];
-    if (z < cell.endLayer) continue; // this cell terminates above z — keep solid here (shows color)
-
-    // Shrink ratio: 0 on the top voronoi layer, 1 on the cell's deepest cut layer.
-    var distFromTop = firstVoronoiLayer - z;
-    var depthSpan = firstVoronoiLayer - cell.endLayer;
-    var shrinkRatio = depthSpan > 0 ? (distFromTop / depthSpan) : 0;
-
-    // Top-layer inset — small absolute gap between cells.
-    var topInset = Math.min(cellGap, cell.inradius * 0.4);
-    // Deepest-layer inset chosen so the terminal polygon has radius ~cell.terminalR.
-    // Minimum terminal radius of 2 keeps Clipper stable while still "pinpoint" visually.
-    var finalInset = cell.inradius - cell.terminalR;
-    if (finalInset < topInset + 0.5) finalInset = topInset + 0.5;
-    var maxFinalInset = cell.inradius - 2;
-    if (finalInset > maxFinalInset) finalInset = maxFinalInset;
-
-    var inset = topInset + shrinkRatio * (finalInset - topInset);
-
-    var insetPoly = offsetPolygonClipper(cell.polygon, -inset);
-    if (!insetPoly || insetPoly.length < 3) continue;
-
-    var segs = new Array(insetPoly.length);
-    for (var k = 0; k < insetPoly.length; k++) {
-        segs[k] = new Point(insetPoly[k].x, insetPoly[k].y);
+    if (z > 0 && basin.levels[z].paths.length) {
+        cut(z, _fromClipperPaths(basin.levels[z].paths));
     }
-    var cellPath = new Path({segments: segs, closed: true});
-    cut(z, cellPath);
-}
 
     frameIt(z);// finish the layer with a final frame cleanup 
 
@@ -715,8 +858,10 @@ for (var i = 0; i < cells.length; i++) {
     features.Size =  ~~(wide/100/ratio)+" x "+~~(high/100/ratio)+" inches";
     features.Width = ~~(wide/100/ratio);
     features.Height = ~~(high/100/ratio);
-    features.Depth = stacks*0.0625;
+    features.Depth = Math.round(stacks*paperThickness/25.4*10000)/10000;
     features.Layers = stacks;
+    features.Wells = basin.wells.length;
+    features.Placement = $fx.getParam('placement');
     for (l=stacks;l>0;l--){
     var key = "layer: "+(stacks-l+1)
     features[key] = colors[l-1].Name
