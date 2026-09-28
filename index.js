@@ -704,19 +704,23 @@ function netArea(paths) {
 
 // Region of the sheet below height T (what gets cut), cleaned for the laser:
 // opening drops cut slivers narrower than the min wall, closing fills material walls
-// thinner than it, then holes and islands under the min area are removed.
+// thinner than it, holes under the min area are dropped, and every island is cut away
+// so the sheet stays one connected piece (an island is material the cut fully encloses).
 function levelRegion(field, T) {
     var raw = clipperUnion(contourRings(field, T), ClipperLib.PolyFillType.pftEvenOdd);
     var half = minWallUnits/2;
     var opened = clipperOffset(clipperOffset(raw, -half), half);
     var closed = clipperOffset(clipperOffset(opened, half), -half);
     var kept = [];
-    var report = {rawArea: netArea(raw), holes: 0, islands: 0, droppedArea: 0};
+    var report = {rawArea: netArea(raw), holes: 0, islands: 0, droppedArea: 0, islandArea: 0};
     for (var i = 0; i < closed.length; i++) {
         var a = ClipperLib.Clipper.Area(closed[i])/(CLIP_SCALE*CLIP_SCALE);
-        if (Math.abs(a) < minHoleUnits2) {
-            if (a > 0) report.holes++; else report.islands++;
-            report.droppedArea += Math.abs(a);
+        if (a < 0) {
+            report.islands++;
+            report.islandArea -= a;
+        } else if (a < minHoleUnits2) {
+            report.holes++;
+            report.droppedArea += a;
         } else {
             kept.push(closed[i]);
         }
@@ -771,7 +775,7 @@ for (var attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         if (r.wallArea > 1) bits.push('thin walls filled ' + mm2(r.wallArea) + 'mm²');
         if (r.sliverArea > 1) bits.push('slivers removed ' + mm2(r.sliverArea) + 'mm²');
         if (r.holes) bits.push(r.holes + ' hole(s) under min area');
-        if (r.islands) bits.push(r.islands + ' island(s) under min area');
+        if (r.islands) bits.push(r.islands + ' floating island(s) cut away, ' + mm2(r.islandArea) + 'mm²');
         if (bits.length) problems.push('layer ' + z + ': ' + bits.join(', '));
     }
     var alteredFraction = totalCut > 0 ? totalAltered/totalCut : 1;
