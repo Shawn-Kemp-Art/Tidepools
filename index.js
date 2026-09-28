@@ -109,6 +109,8 @@ if(new URLSearchParams(window.location.search).get('d')){qwells = parseInt(new U
 var qaspect = "4:5";
 if(new URLSearchParams(window.location.search).get('aspect')){qaspect = new URLSearchParams(window.location.search).get('aspect')}; //aspect ratio
 
+var qpools = R.random_choice(["overlapping", "separate", "mixed"]);
+if(new URLSearchParams(window.location.search).get('po')){qpools = new URLSearchParams(window.location.search).get('po')}; //pool layout: overlapping, separate, mixed
 var qplacement = "random";
 if(new URLSearchParams(window.location.search).get('pm')){qplacement = new URLSearchParams(window.location.search).get('pm')}; //well placement: random, phyllotaxis, poisson, voronoi
 var qwellsize = R.random_int(12,22);
@@ -117,6 +119,8 @@ var qaspectvar = R.random_int(0,10);
 if(new URLSearchParams(window.location.search).get('av')){qaspectvar = parseInt(new URLSearchParams(window.location.search).get('av'))}; //0 = round wells, 10 = strongly elongated
 var qskew = R.random_int(3,8);
 if(new URLSearchParams(window.location.search).get('sk')){qskew = parseInt(new URLSearchParams(window.location.search).get('sk'))}; //0 = symmetric wells, 10 = lopsided with one steep side
+var qblob = R.random_int(4,9);
+if(new URLSearchParams(window.location.search).get('bl')){qblob = parseInt(new URLSearchParams(window.location.search).get('bl'))}; //0 = elliptical wells, 10 = strongly lobed pebble outlines
 var qwarpfreq = R.random_int(2,6);
 if(new URLSearchParams(window.location.search).get('wf')){qwarpfreq = parseInt(new URLSearchParams(window.location.search).get('wf'))}; //domain warp frequency
 var qwarpamp = R.random_int(3,10);
@@ -218,6 +222,13 @@ definitions = [
         options: {min: 4, max: 14, step: 1},
     },
     {
+        id: "pools",
+        name: "Pool layout",
+        type: "select",
+        default: qpools,
+        options: {options: ["overlapping", "separate", "mixed"]},
+    },
+    {
         id: "placement",
         name: "Well placement",
         type: "select",
@@ -243,6 +254,13 @@ definitions = [
         name: "Skew strength",
         type: "number",
         default: qskew,
+        options: {min: 0, max: 10, step: 1},
+    },
+    {
+        id: "blob",
+        name: "Blobbiness",
+        type: "number",
+        default: qblob,
         options: {min: 0, max: 10, step: 1},
     },
     {
@@ -400,6 +418,7 @@ var minHoleUnits2 = $fx.getParam('minhole')*unitsPerMM*unitsPerMM;
 var GRID_STEP = 3;                // height field sample spacing, units
 var MAX_ATTEMPTS = 8;             // bounded regeneration when a seed breaks fabrication limits
 var MAX_CLEANUP_FRACTION = 0.03;  // reject when cleanup has to rewrite more than this share of the cut area
+var TOP_RIM = 0.15;               // top layer's contour, as a fraction of full depth; shallower levels trace faint well tails
 
 // Domain warp reuses the seeded Perlin generator; 2 octaves keeps it low-frequency.
 noise.perlin_octaves = 2;
@@ -517,11 +536,24 @@ function placeWellCenters(count, mode) {
     return centers;
 }
 
+// Low-order harmonics on a well's outline (k = 2..5) turn an ellipse into a pebble.
+// Amplitudes fall off with k and are capped so the radius never folds back on itself.
+var LOBE_AMPS = [0.16, 0.13, 0.09, 0.06];
+
+function makeLobes(blob) {
+    var lobes = [];
+    for (var k = 0; k < LOBE_AMPS.length; k++) {
+        lobes.push({k: k + 2, a: blob*LOBE_AMPS[k]*(0.4 + R.random_dec()*0.6), p: R.random_dec()*Math.PI*2});
+    }
+    return lobes;
+}
+
 function makeWells() {
     var centers = placeWellCenters($fx.getParam('wells'), $fx.getParam('placement'));
     var sigmaBase = minDim*$fx.getParam('wellsize')/100;
     var aspectVar = $fx.getParam('aspectvar')/10;
     var skew = $fx.getParam('skew')/10;
+    var blob = $fx.getParam('blob')/10;
     var wells = [];
     for (var i = 0; i < centers.length; i++) {
         var sx = sigmaBase*(0.75 + R.random_dec()*0.5);
@@ -532,7 +564,8 @@ function makeWells() {
             rot: R.random_dec()*Math.PI,
             depth: 0.55 + R.random_dec()*0.45,
             skewAngle: R.random_dec()*Math.PI*2,
-            skewStrength: skew*(0.6 + R.random_dec()*0.4)
+            skewStrength: skew*(0.6 + R.random_dec()*0.4),
+            lobes: makeLobes(blob)
         });
     }
     return wells;
@@ -546,9 +579,15 @@ function wellValue(wx, wy, well) {
     var nx = (dx*c - dy*s)/well.sx, ny = (dx*s + dy*c)/well.sy;
     var ux = nx - well.skewStrength*0.5*Math.cos(well.skewAngle);
     var uy = ny - well.skewStrength*0.5*Math.sin(well.skewAngle);
-    var compression = 1 + well.skewStrength*Math.cos(Math.atan2(uy, ux) - well.skewAngle);
-    compression = Math.min(2.0, Math.max(0.3, compression));
-    var ue = Math.hypot(ux, uy)*compression;
+    var phi = Math.atan2(uy, ux);
+    var compression = 1 + well.skewStrength*Math.cos(phi - well.skewAngle);
+    compression = Math.min(2.0, Math.max(0.5, compression));
+    var lobe = 1;
+    for (var k = 0; k < well.lobes.length; k++) {
+        var L = well.lobes[k];
+        lobe += L.a*Math.cos(L.k*phi + L.p);
+    }
+    var ue = Math.hypot(ux, uy)*compression/Math.max(0.5, lobe);
     return -well.depth*Math.exp(-0.5*ue*ue);
 }
 
@@ -566,6 +605,8 @@ function edgeTaper(x, y) {
     return t*t*(3 - 2*t);
 }
 
+var deepestWell = -1; // index of the well dominating the last heightAt() sample
+
 function heightAt(x, y, wells, attempt) {
     var wx = x, wy = y;
     if (warpAmp > 0) {
@@ -577,9 +618,10 @@ function heightAt(x, y, wells, attempt) {
     // so chaining smin across every well would sink the whole flat rim, and a hard
     // on/off gate leaves a step that shallow contours zigzag along.
     var min1 = 0, min2 = 0;
+    deepestWell = -1;
     for (var i = 0; i < wells.length; i++) {
         var v = wellValue(wx, wy, wells[i]);
-        if (v < min1) { min2 = min1; min1 = v; }
+        if (v < min1) { min2 = min1; min1 = v; deepestWell = i; }
         else if (v < min2) { min2 = v; }
     }
     var fade = Math.min(1, Math.max(0, (-min1 - 0.01)/0.1));
@@ -588,20 +630,242 @@ function heightAt(x, y, wells, attempt) {
     return Math.min(h, 0)*edgeTaper(x, y);
 }
 
-function buildField(wells, attempt) {
-    var cols = Math.floor(drawareawide/GRID_STEP) + 1;
-    var rows = Math.floor(drawareahigh/GRID_STEP) + 1;
+function buildField(wells, attempt, step) {
+    step = step || GRID_STEP;
+    var cols = Math.floor(drawareawide/step) + 1;
+    var rows = Math.floor(drawareahigh/step) + 1;
     var stepX = drawareawide/(cols - 1), stepY = drawareahigh/(rows - 1);
     var grid = new Float64Array(cols*rows);
+    var owner = new Int16Array(cols*rows);
     var hmin = 0;
     for (var j = 0; j < rows; j++) {
         for (var i = 0; i < cols; i++) {
             var v = heightAt(bbox.minX + i*stepX, bbox.minY + j*stepY, wells, attempt);
             grid[j*cols + i] = v;
+            owner[j*cols + i] = deepestWell;
             if (v < hmin) hmin = v;
         }
     }
-    return {cols: cols, rows: rows, stepX: stepX, stepY: stepY, grid: grid, hmin: hmin};
+    return {cols: cols, rows: rows, stepX: stepX, stepY: stepY, grid: grid, owner: owner, hmin: hmin};
+}
+
+// Pool layout. "overlapping" leaves wells free to merge. "separate" makes every well its
+// own pool; "mixed" groups wells into a few clusters that may overlap internally. Each
+// cluster owns the part of the sheet nearest its centers (a Voronoi territory) less half
+// of POOL_GAP and the frame margin; a well whose top-layer pool spills out of its
+// territory shrinks, wells with room to spare grow until they meet their border, and
+// wells that get too small are dropped.
+var POOL_GAP = Math.max(minWallUnits*3, minDim*0.04);
+var POOL_STEP = 5;
+var POOL_SHRINK = 0.9;
+var POOL_GROW = 1.08;
+var POOL_START = 0.35;
+var POOL_RELAX = 1.0;
+var POOL_RELAX_ROUNDS = 6;
+var MIN_WELL_SIGMA = minDim*0.03;
+
+function assignClusters(wells, style) {
+    if (style == "separate") {
+        for (var i = 0; i < wells.length; i++) wells[i].cluster = i;
+        return;
+    }
+    // mixed: farthest-point seeds, each well joins its nearest seed
+    var k = Math.max(2, Math.round(wells.length/3));
+    var seeds = [0];
+    while (seeds.length < Math.min(k, wells.length)) {
+        var best = -1, bestD = -1;
+        for (var i = 0; i < wells.length; i++) {
+            var d = Infinity;
+            for (var s = 0; s < seeds.length; s++) {
+                d = Math.min(d, Math.hypot(wells[i].cx - wells[seeds[s]].cx, wells[i].cy - wells[seeds[s]].cy));
+            }
+            if (d > bestD) { bestD = d; best = i; }
+        }
+        seeds.push(best);
+    }
+    for (var i = 0; i < wells.length; i++) {
+        var nearest = 0, nd = Infinity;
+        for (var s = 0; s < seeds.length; s++) {
+            var d = Math.hypot(wells[i].cx - wells[seeds[s]].cx, wells[i].cy - wells[seeds[s]].cy);
+            if (d < nd) { nd = d; nearest = s; }
+        }
+        wells[i].cluster = nearest;
+    }
+}
+
+// Push apart wells of different clusters that sit closer than an even share of the sheet
+// would allow, so no pool is squeezed to nothing by a neighbour placed on top of it.
+function spreadClusters(wells) {
+    var clusterCount = {};
+    for (var i = 0; i < wells.length; i++) clusterCount[wells[i].cluster] = true;
+    var n = Object.keys(clusterCount).length;
+    var dmin = 0.8*Math.sqrt(drawareawide*drawareahigh/n);
+    var pad = minDim*0.12;
+    for (var iter = 0; iter < 60; iter++) {
+        var moved = false;
+        for (var a = 0; a < wells.length; a++) {
+            for (var b = a + 1; b < wells.length; b++) {
+                if (wells[a].cluster === wells[b].cluster) continue;
+                var dx = wells[b].cx - wells[a].cx, dy = wells[b].cy - wells[a].cy;
+                var d = Math.hypot(dx, dy);
+                if (d >= dmin) continue;
+                if (d < 1e-6) { dx = 1; dy = 0; d = 1; }
+                var push = (dmin - d)/2*0.5;
+                wells[a].cx -= dx/d*push; wells[a].cy -= dy/d*push;
+                wells[b].cx += dx/d*push; wells[b].cy += dy/d*push;
+                moved = true;
+            }
+        }
+        for (var i = 0; i < wells.length; i++) {
+            wells[i].cx = Math.min(bbox.maxX - pad, Math.max(bbox.minX + pad, wells[i].cx));
+            wells[i].cy = Math.min(bbox.maxY - pad, Math.max(bbox.minY + pad, wells[i].cy));
+        }
+        if (!moved) break;
+    }
+}
+
+function polygonArea(poly) {
+    var a = 0;
+    for (var j = 0; j < poly.length; j++) {
+        var p = poly[j], q = poly[(j+1)%poly.length];
+        a += p.x*q.y - q.x*p.y;
+    }
+    return Math.abs(a)/2;
+}
+
+// Lloyd step: move each pool (or each mixed cluster, as a group) toward the centroid of the
+// sheet area it owns, so pools spread out to use the whole sheet instead of bunching.
+function relaxPools(wells) {
+    var sites = [];
+    for (var i = 0; i < wells.length; i++) sites.push({x: wells[i].cx, y: wells[i].cy});
+    var groups = {};
+    for (var i = 0; i < wells.length; i++) {
+        var cell = computeVoronoiCell(i, sites);
+        if (!cell) continue;
+        var c = polygonCentroid(cell);
+        if (!c) continue;
+        var a = polygonArea(cell);
+        var g = groups[wells[i].cluster] || (groups[wells[i].cluster] = {ax: 0, ay: 0, area: 0, mx: 0, my: 0, n: 0, members: []});
+        g.ax += c.x*a; g.ay += c.y*a; g.area += a;
+        g.mx += wells[i].cx; g.my += wells[i].cy; g.n++;
+        g.members.push(wells[i]);
+    }
+    for (var key in groups) {
+        var g = groups[key];
+        var dx = (g.ax/g.area - g.mx/g.n)*POOL_RELAX;
+        var dy = (g.ay/g.area - g.my/g.n)*POOL_RELAX;
+        for (var m = 0; m < g.members.length; m++) { g.members[m].cx += dx; g.members[m].cy += dy; }
+    }
+}
+
+// Wells whose top-layer pool comes within POOL_GAP of another cluster's pool, or reaches
+// the frame margin. Pools are grown by half the gap on the grid; any grown component
+// holding more than one cluster (or touching the margin) flags every well in it.
+function poolConflicts(f, wells, T, edgeBand) {
+    var cols = f.cols, rows = f.rows, n = cols*rows;
+    var inPool = new Uint8Array(n);
+    for (var k = 0; k < n; k++) inPool[k] = f.grid[k] < T && f.owner[k] >= 0 ? 1 : 0;
+    var grown = inPool.slice();
+    var r = Math.ceil(POOL_GAP/2/Math.min(f.stepX, f.stepY));
+    for (var pass = 0; pass < r; pass++) {
+        var prev = grown.slice();
+        for (var j = 0; j < rows; j++) {
+            for (var i = 0; i < cols; i++) {
+                var k = j*cols + i;
+                if (prev[k]) continue;
+                if ((i > 0 && prev[k - 1]) || (i < cols - 1 && prev[k + 1]) ||
+                    (j > 0 && prev[k - cols]) || (j < rows - 1 && prev[k + cols])) grown[k] = 1;
+            }
+        }
+    }
+    var comp = new Int32Array(n).fill(-1);
+    var bad = {};
+    var stack = [];
+    for (var start = 0; start < n; start++) {
+        if (!grown[start] || comp[start] >= 0) continue;
+        var members = {}, clusters = {}, clusterCount = 0, edge = false;
+        comp[start] = start;
+        stack.push(start);
+        while (stack.length) {
+            var c = stack.pop();
+            var ci = c % cols, cj = (c - ci)/cols;
+            if (inPool[c]) {
+                var w = f.owner[c];
+                members[w] = true;
+                if (!clusters[wells[w].cluster]) { clusters[wells[w].cluster] = true; clusterCount++; }
+                var ex = ci*f.stepX, ey = cj*f.stepY;
+                if (ex < edgeBand || ey < edgeBand || drawareawide - ex < edgeBand || drawareahigh - ey < edgeBand) edge = true;
+            }
+            var nbs = [ci > 0 ? c - 1 : -1, ci < cols - 1 ? c + 1 : -1, cj > 0 ? c - cols : -1, cj < rows - 1 ? c + cols : -1];
+            for (var q = 0; q < 4; q++) {
+                var nb = nbs[q];
+                if (nb >= 0 && grown[nb] && comp[nb] < 0) { comp[nb] = start; stack.push(nb); }
+            }
+        }
+        if (clusterCount > 1 || edge) for (var w in members) bad[w] = true;
+    }
+    return bad;
+}
+
+// Grow each unsettled well until its top-layer pool reaches its territory border, the gap,
+// or the frame margin; shrink any that spill over. Returns the wells that survive.
+function fitPools(wells, attempt) {
+    var style = $fx.getParam('pools');
+    var edgeBand = minDim*0.08;
+    var maxSigma = minDim*0.3;
+    for (var iter = 0; iter < 80; iter++) {
+        var forceSettle = iter >= 60; // last passes only shrink, so the loop always ends clean
+        var f = buildField(wells, attempt, POOL_STEP);
+        var T = f.hmin*TOP_RIM;
+        var bad = poolConflicts(f, wells, T, edgeBand), badCount = Object.keys(bad).length;
+        var growing = false;
+        var kept = [];
+        for (var i = 0; i < wells.length; i++) {
+            var w = wells[i];
+            if (bad[i]) {
+                w.sx *= POOL_SHRINK;
+                w.sy *= POOL_SHRINK;
+                w.settled = true;
+                if (Math.max(w.sx, w.sy) < MIN_WELL_SIGMA) continue;
+            } else if (!w.settled && !forceSettle) {
+                w.sx *= POOL_GROW;
+                w.sy *= POOL_GROW;
+                if (Math.max(w.sx, w.sy) > maxSigma) w.settled = true;
+                growing = true;
+            }
+            kept.push(w);
+        }
+        if (kept.length < wells.length && !forceSettle) {
+            // A dropped well frees room: let the survivors grow into it.
+            for (var i = 0; i < kept.length; i++) kept[i].settled = false;
+            growing = true;
+        }
+        if (!badCount && !growing) {
+            return kept;
+        }
+        wells = kept;
+    }
+    console.log('[basins] ' + style + ' pools: some pools still outside their territory after 80 steps');
+    return wells;
+}
+
+function separatePools(wells, attempt) {
+    var style = $fx.getParam('pools');
+    if (style == "overlapping") return wells;
+    assignClusters(wells, style);
+    spreadClusters(wells);
+    // Start small and grow outward so every pool fills the room it has.
+    for (var i = 0; i < wells.length; i++) {
+        wells[i].sx *= POOL_START;
+        wells[i].sy *= POOL_START;
+    }
+    for (var round = 0; round < POOL_RELAX_ROUNDS; round++) {
+        if (round > 0) relaxPools(wells);
+        for (var i = 0; i < wells.length; i++) wells[i].settled = false;
+        wells = fitPools(wells, attempt);
+    }
+    console.log('[basins] ' + style + ' pools: ' + wells.length + ' wells kept after ' + POOL_RELAX_ROUNDS + ' fit/relax rounds');
+    return wells;
 }
 
 // Marching squares -> closed rings in Clipper integer space. Crossings are keyed by grid
@@ -735,7 +999,7 @@ function levelRegion(field, T) {
 // Tightest in-plan ledge between consecutive layers, from the field's steepest slope.
 function tightestLedgeMM(field) {
     var mmPerUnit = 1/unitsPerMM;
-    var mmPerHeight = stacks*paperThickness/(-field.hmin);
+    var mmPerHeight = (stacks - 1)*paperThickness/(-field.hmin*(1 - TOP_RIM));
     var worst = Infinity;
     var g = field.grid, cols = field.cols;
     for (var j = 1; j < field.rows - 1; j++) {
@@ -752,10 +1016,15 @@ function tightestLedgeMM(field) {
 }
 
 // Level z (1..stacks-1) cuts everything below its threshold; layer 0 stays a solid back panel.
+// Thresholds are evenly spaced from the deepest point up to TOP_RIM of full depth.
+function levelThreshold(hmin, z) {
+    return hmin*(1 - (z/(stacks - 1))*(1 - TOP_RIM));
+}
+
 function buildLevels(field) {
     var levels = [null];
     for (var z = 1; z < stacks; z++) {
-        levels.push(levelRegion(field, field.hmin*(1 - z/stacks)));
+        levels.push(levelRegion(field, levelThreshold(field.hmin, z)));
     }
     return levels;
 }
@@ -764,7 +1033,7 @@ function mm2(unitsSq) { return (unitsSq/(unitsPerMM*unitsPerMM)).toFixed(1); }
 
 var basin = null;
 for (var attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    var wells = makeWells();
+    var wells = separatePools(makeWells(), attempt);
     var field = buildField(wells, attempt);
     var levels = buildLevels(field);
 
@@ -868,6 +1137,7 @@ for (z = 0; z < stacks; z++) {
     features.Layers = stacks;
     features.Wells = basin.wells.length;
     features.Placement = $fx.getParam('placement');
+    features.Pools = $fx.getParam('pools');
     for (l=stacks;l>0;l--){
     var key = "layer: "+(stacks-l+1)
     features[key] = colors[l-1].Name
